@@ -397,6 +397,18 @@ def cuda(model="unknown", arch=None, options=None):
         warnings.warn("Try specifying cuda arch by adding 'arch=sm_xx' to your target.")
     return Target(" ".join(["cuda"] + opts))
 
+def sdaa(model="unknown", options=None):
+    """Returns a sdaa target.
+
+    Parameters
+    ----------
+    model: str
+        The model of this device
+    options : str or list of str
+        Additional options
+    """
+    opts = _merge_opts(["-model=%s" % model], options)
+    return Target(" ".join(["sdaa"] + opts))
 
 def rocm(model="unknown", options=None):
     """Returns a ROCM target.
