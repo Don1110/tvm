@@ -70,7 +70,7 @@ class ThreadIdxExtractor : public tir::StmtVisitor {
       //   threadIdx_z_ext = op->value;
       // }
 
-      // zly: need to make sure where name_hint and thread_tag arise
+      // zly: need to make sure where name_hint and thread_tag are first defined. Perhaps, in topi/
       if (iv->var->name_hint == "_PEN" || iv->thread_tag == "_PEN") {
         threadIdx_ext = op->value;
       }
@@ -97,68 +97,71 @@ void CodeGenSDAA::PrintExtraAttrs(const PrimFunc& f) {
       // unable to extract the number of threads per block, hence directly return
       return;
     }
+    // zly: have not found any similar characteristic in SDAA.
     // stream << " __launch_bounds__(" << threadIdx_ext_int->value << ")";
   }
 }
 
 std::string CodeGenSDAA::Finish() {
-  if (enable_fp16_) {
-    decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 530)\n";
-    decl_stream << "#include <cuda_fp16.h>\n";
-    decl_stream << "__device__ half max"
-                << "(half a, half b)\n"
-                << "{\n  return __hgt(__half(a), __half(b)) ? a : b;\n}\n";
-    decl_stream << "__device__ half min(half a, half b)\n"
-                << "{\n  return __hlt(__half(a), __half(b)) ? a : b;\n}\n";
-    decl_stream << "#else\n";
-    decl_stream << _cuda_half_t_def;
-    decl_stream << "#endif\n\n";
-    decl_stream << _cuda_half_util;
-  }
+  // zly: tecocc will do this work automatically.
 
-  if (enable_bf16_) {
-    decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)\n";
-    decl_stream << "#include <cuda_bf16.h>\n";
-    decl_stream << "__device__ nv_bfloat16 max"
-                << "(nv_bfloat16 a, nv_bfloat16 b)\n"
-                << "{\n  return __hgt(a, b) ? a : b;\n}\n";
-    decl_stream << "__device__ nv_bfloat16 min(nv_bfloat16 a, nv_bfloat16 b)\n"
-                << "{\n  return __hlt(a, b) ? a : b;\n}\n";
-    decl_stream << "#endif\n\n";
-    decl_stream << _cuda_bfloat16_util;
-  }
+  // if (enable_fp16_) {
+  //   decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 530)\n";
+  //   decl_stream << "#include <cuda_fp16.h>\n";
+  //   decl_stream << "__device__ half max"
+  //               << "(half a, half b)\n"
+  //               << "{\n  return __hgt(__half(a), __half(b)) ? a : b;\n}\n";
+  //   decl_stream << "__device__ half min(half a, half b)\n"
+  //               << "{\n  return __hlt(__half(a), __half(b)) ? a : b;\n}\n";
+  //   decl_stream << "#else\n";
+  //   decl_stream << _cuda_half_t_def;
+  //   decl_stream << "#endif\n\n";
+  //   decl_stream << _cuda_half_util;
+  // }
 
-  if (enable_warp_shuffle_) {
-    decl_stream << _cuda_warp_intrinsic_util;
-  }
+  // if (enable_bf16_) {
+  //   decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)\n";
+  //   decl_stream << "#include <cuda_bf16.h>\n";
+  //   decl_stream << "__device__ nv_bfloat16 max"
+  //               << "(nv_bfloat16 a, nv_bfloat16 b)\n"
+  //               << "{\n  return __hgt(a, b) ? a : b;\n}\n";
+  //   decl_stream << "__device__ nv_bfloat16 min(nv_bfloat16 a, nv_bfloat16 b)\n"
+  //               << "{\n  return __hlt(a, b) ? a : b;\n}\n";
+  //   decl_stream << "#endif\n\n";
+  //   decl_stream << _cuda_bfloat16_util;
+  // }
 
-  if (enable_int8_) {
-    decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 610)\n";
-    decl_stream << "#include <sm_61_intrinsics.h>\n";
-    decl_stream << "#endif\n";
-  }
+  // if (enable_warp_shuffle_) {
+  //   decl_stream << _cuda_warp_intrinsic_util;
+  // }
 
-  if (need_math_constants_h_) {
-    decl_stream << "#include <math_constants.h>\n";
-  }
+  // if (enable_int8_) {
+  //   decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 610)\n";
+  //   decl_stream << "#include <sm_61_intrinsics.h>\n";
+  //   decl_stream << "#endif\n";
+  // }
 
-  if (need_mma_h_) {
-    decl_stream << "#include <mma.h>\n";
-  }
+  // if (need_math_constants_h_) {
+  //   decl_stream << "#include <math_constants.h>\n";
+  // }
 
-  decl_stream << "\n#ifdef _WIN32\n";
-  decl_stream << "  using uint = unsigned int;\n";
-  decl_stream << "  using uchar = unsigned char;\n";
-  decl_stream << "  using ushort = unsigned short;\n";
-  decl_stream << "  using int64_t = long long;\n";
-  decl_stream << "  using uint64_t = unsigned long long;\n";
-  decl_stream << "#else\n";
-  decl_stream << "  #define uint unsigned int\n";
-  decl_stream << "  #define uchar unsigned char\n";
-  decl_stream << "  #define ushort unsigned short\n";
-  decl_stream << "  #define int64_t long long\n";
-  decl_stream << "  #define uint64_t unsigned long long\n";
-  decl_stream << "#endif\n";
+  // if (need_mma_h_) {
+  //   decl_stream << "#include <mma.h>\n";
+  // }
+
+  // decl_stream << "\n#ifdef _WIN32\n";
+  // decl_stream << "  using uint = unsigned int;\n";
+  // decl_stream << "  using uchar = unsigned char;\n";
+  // decl_stream << "  using ushort = unsigned short;\n";
+  // decl_stream << "  using int64_t = long long;\n";
+  // decl_stream << "  using uint64_t = unsigned long long;\n";
+  // decl_stream << "#else\n";
+  // decl_stream << "  #define uint unsigned int\n";
+  // decl_stream << "  #define uchar unsigned char\n";
+  // decl_stream << "  #define ushort unsigned short\n";
+  // decl_stream << "  #define int64_t long long\n";
+  // decl_stream << "  #define uint64_t unsigned long long\n";
+  // decl_stream << "#endif\n";
 
   return CodeGenC::Finish();
 }

@@ -42,8 +42,8 @@ namespace codegen {
 #define TECOCC_CALL(x)                                                                        \
   {                                                                                          \
     tecoccResult result = x;                                                                  \
-    if (result != NVRTC_SUCCESS) {                                                           \
-      LOG(FATAL) << "NvrtcError: " #x " failed with error: " << nvrtcGetErrorString(result); \
+    if (result != TECOCC_SUCCESS) {                                                           \
+      LOG(FATAL) << "TecoccError: " #x " failed with error: " << tecoccGetErrorString(result); \
     }                                                                                        \
   }
 
