@@ -191,8 +191,24 @@ def get_sdaa_version(sdaa_path=None):
 @tvm._ffi.register_func
 def tvm_callback_sdaa_compile(code):
     """use tecocc to generate fatbin code for better optimization"""
-    ptx = compile_sdaa(code, target_format="fatbin")
-    return ptx
+    fatbin = compile_sdaa(code, target_format="fatbin")
+    return fatbin
+
+def write_code(code, fname):
+    with open(fname, "w") as f:
+        f.write(code)
+
+TASK = "test_sdaa"
+USE_MANUAL_CODE = False
+
+@tvm._ffi.register_func
+def tvm_callback_sdaa_postproc(code):
+    if not os.path.exists("perf"):
+        os.mkdir("perf")
+    write_code(code, "perf/%s_generated.swcu" % TASK)
+    if USE_MANUAL_CODE:
+        code = open("perf/%s_manual.swcu" % TASK).read()
+    return code
 
 
 # @tvm._ffi.register_func("tvm_callback_libdevice_path")
