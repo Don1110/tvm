@@ -82,6 +82,8 @@ def compile_sdaa(code, target_format="fatbin", options=None, path_target=None):
     if target_format == "so":
         cmd += ["-shared"]
 
+    # zly: whether is it necessary?
+    cmd += ["--sdaa-device-only"]
     # if isinstance(arch, list):
     #     cmd += arch
     # elif isinstance(arch, str):
