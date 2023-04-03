@@ -436,6 +436,12 @@ TVM_REGISTER_TARGET_KIND("composite", kDLCPU)  // line break
 TVM_REGISTER_TARGET_KIND("test", kDLCPU)  // line break
     .set_target_parser(TestTargetParser);
 
+// zly: register sdaa target, but the attribute need to be added.
+TVM_REGISTER_TARGET_KIND("sdaa", kDLSDAA)
+    .add_attr_option<Integer>("max_num_threads", Integer(128))
+    .add_attr_option<Integer>("thread_warp_size", Integer(32));
+
+
 /**********  Registry  **********/
 
 TVM_REGISTER_GLOBAL("target.TargetKindGetAttr")
