@@ -34,8 +34,8 @@
 #include <vector>
 
 // zly: need to check
-#include "literal/cuda_half_t.h"
-#include "ptx.h"
+// #include "literal/cuda_half_t.h"
+// #include "ptx.h"
 
 namespace tvm {
 namespace codegen {
@@ -47,9 +47,9 @@ CodeGenSDAA::CodeGenSDAA() {
 // zly: ??
 void CodeGenSDAA::Init(bool output_ssa) {
   CodeGenC::Init(output_ssa);
-  vid_global_barrier_state_ = name_supply_->FreshName(runtime::symbol::tvm_global_barrier_state);
-  vid_global_barrier_expect_ = name_supply_->FreshName("__barrier_expect");
-  ICHECK_EQ(vid_global_barrier_state_, runtime::symbol::tvm_global_barrier_state);
+  // vid_global_barrier_state_ = name_supply_->FreshName(runtime::symbol::tvm_global_barrier_state);
+  // vid_global_barrier_expect_ = name_supply_->FreshName("__barrier_expect");
+  // ICHECK_EQ(vid_global_barrier_state_, runtime::symbol::tvm_global_barrier_state);
 }
 
 void CodeGenSDAA::PrintFuncPrefix(std::ostream& os) { os << "extern \"C\" __global__ void"; }
@@ -60,105 +60,101 @@ class ThreadIdxExtractor : public tir::StmtVisitor {
   void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == tir::attr::thread_extent) {
       IterVar iv = Downcast<IterVar>(op->node);
-      // if (iv->var->name_hint == "threadIdx.x" || iv->thread_tag == "threadIdx.x") {
-      //   threadIdx_x_ext = op->value;
-      // }
-      // if (iv->var->name_hint == "threadIdx.y" || iv->thread_tag == "threadIdx.y") {
-      //   threadIdx_y_ext = op->value;
-      // }
-      // if (iv->var->name_hint == "threadIdx.z" || iv->thread_tag == "threadIdx.z") {
-      //   threadIdx_z_ext = op->value;
-      // }
-
-      // zly: need to make sure where name_hint and thread_tag arise
-      if (iv->var->name_hint == "_PEN" || iv->thread_tag == "_PEN") {
-        threadIdx_ext = op->value;
+      if (iv->var->name_hint == "threadIdx.x" || iv->thread_tag == "threadIdx.x") {
+        threadIdx_x_ext = op->value;
+      }
+      if (iv->var->name_hint == "threadIdx.y" || iv->thread_tag == "threadIdx.y") {
+        threadIdx_y_ext = op->value;
+      }
+      if (iv->var->name_hint == "threadIdx.z" || iv->thread_tag == "threadIdx.z") {
+        threadIdx_z_ext = op->value;
       }
     }
     StmtVisitor::VisitStmt_(op);
   }
 
  public:
-  // PrimExpr threadIdx_x_ext = Integer(1);
-  // PrimExpr threadIdx_y_ext = Integer(1);
-  // PrimExpr threadIdx_z_ext = Integer(1);
-  PrimExpr threadIdx_ext = Integer(1);
+  PrimExpr threadIdx_x_ext = Integer(1);
+  PrimExpr threadIdx_y_ext = Integer(1);
+  PrimExpr threadIdx_z_ext = Integer(1);
 };
 
 void CodeGenSDAA::PrintExtraAttrs(const PrimFunc& f) {
   ThreadIdxExtractor extractor;
   extractor(f->body);
   arith::Analyzer analyzer;
-  // PrimExpr threadIdx_ext = analyzer.Simplify(extractor.threadIdx_x_ext * extractor.threadIdx_y_ext *
-  //                                            extractor.threadIdx_z_ext);
-  PrimExpr threadIdx_ext = analyzer.Simplify(extractor.threadIdx_ext);
+  PrimExpr threadIdx_ext = analyzer.Simplify(extractor.threadIdx_x_ext * extractor.threadIdx_y_ext *
+                                             extractor.threadIdx_z_ext);
   if (const IntImmNode* const threadIdx_ext_int = threadIdx_ext.as<IntImmNode>()) {
     if (threadIdx_ext_int->value == 1) {
       // unable to extract the number of threads per block, hence directly return
       return;
     }
+    // zly: have not found any similar characteristic in SDAA.
     // stream << " __launch_bounds__(" << threadIdx_ext_int->value << ")";
   }
 }
 
 std::string CodeGenSDAA::Finish() {
-  if (enable_fp16_) {
-    decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 530)\n";
-    decl_stream << "#include <cuda_fp16.h>\n";
-    decl_stream << "__device__ half max"
-                << "(half a, half b)\n"
-                << "{\n  return __hgt(__half(a), __half(b)) ? a : b;\n}\n";
-    decl_stream << "__device__ half min(half a, half b)\n"
-                << "{\n  return __hlt(__half(a), __half(b)) ? a : b;\n}\n";
-    decl_stream << "#else\n";
-    decl_stream << _cuda_half_t_def;
-    decl_stream << "#endif\n\n";
-    decl_stream << _cuda_half_util;
-  }
+  // zly: tecocc will do this work automatically.
 
-  if (enable_bf16_) {
-    decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)\n";
-    decl_stream << "#include <cuda_bf16.h>\n";
-    decl_stream << "__device__ nv_bfloat16 max"
-                << "(nv_bfloat16 a, nv_bfloat16 b)\n"
-                << "{\n  return __hgt(a, b) ? a : b;\n}\n";
-    decl_stream << "__device__ nv_bfloat16 min(nv_bfloat16 a, nv_bfloat16 b)\n"
-                << "{\n  return __hlt(a, b) ? a : b;\n}\n";
-    decl_stream << "#endif\n\n";
-    decl_stream << _cuda_bfloat16_util;
-  }
+  // if (enable_fp16_) {
+  //   decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 530)\n";
+  //   decl_stream << "#include <cuda_fp16.h>\n";
+  //   decl_stream << "__device__ half max"
+  //               << "(half a, half b)\n"
+  //               << "{\n  return __hgt(__half(a), __half(b)) ? a : b;\n}\n";
+  //   decl_stream << "__device__ half min(half a, half b)\n"
+  //               << "{\n  return __hlt(__half(a), __half(b)) ? a : b;\n}\n";
+  //   decl_stream << "#else\n";
+  //   decl_stream << _cuda_half_t_def;
+  //   decl_stream << "#endif\n\n";
+  //   decl_stream << _cuda_half_util;
+  // }
 
-  if (enable_warp_shuffle_) {
-    decl_stream << _cuda_warp_intrinsic_util;
-  }
+  // if (enable_bf16_) {
+  //   decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)\n";
+  //   decl_stream << "#include <cuda_bf16.h>\n";
+  //   decl_stream << "__device__ nv_bfloat16 max"
+  //               << "(nv_bfloat16 a, nv_bfloat16 b)\n"
+  //               << "{\n  return __hgt(a, b) ? a : b;\n}\n";
+  //   decl_stream << "__device__ nv_bfloat16 min(nv_bfloat16 a, nv_bfloat16 b)\n"
+  //               << "{\n  return __hlt(a, b) ? a : b;\n}\n";
+  //   decl_stream << "#endif\n\n";
+  //   decl_stream << _cuda_bfloat16_util;
+  // }
 
-  if (enable_int8_) {
-    decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 610)\n";
-    decl_stream << "#include <sm_61_intrinsics.h>\n";
-    decl_stream << "#endif\n";
-  }
+  // if (enable_warp_shuffle_) {
+  //   decl_stream << _cuda_warp_intrinsic_util;
+  // }
 
-  if (need_math_constants_h_) {
-    decl_stream << "#include <math_constants.h>\n";
-  }
+  // if (enable_int8_) {
+  //   decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 610)\n";
+  //   decl_stream << "#include <sm_61_intrinsics.h>\n";
+  //   decl_stream << "#endif\n";
+  // }
 
-  if (need_mma_h_) {
-    decl_stream << "#include <mma.h>\n";
-  }
+  // if (need_math_constants_h_) {
+  //   decl_stream << "#include <math_constants.h>\n";
+  // }
 
-  decl_stream << "\n#ifdef _WIN32\n";
-  decl_stream << "  using uint = unsigned int;\n";
-  decl_stream << "  using uchar = unsigned char;\n";
-  decl_stream << "  using ushort = unsigned short;\n";
-  decl_stream << "  using int64_t = long long;\n";
-  decl_stream << "  using uint64_t = unsigned long long;\n";
-  decl_stream << "#else\n";
-  decl_stream << "  #define uint unsigned int\n";
-  decl_stream << "  #define uchar unsigned char\n";
-  decl_stream << "  #define ushort unsigned short\n";
-  decl_stream << "  #define int64_t long long\n";
-  decl_stream << "  #define uint64_t unsigned long long\n";
-  decl_stream << "#endif\n";
+  // if (need_mma_h_) {
+  //   decl_stream << "#include <mma.h>\n";
+  // }
+
+  // decl_stream << "\n#ifdef _WIN32\n";
+  // decl_stream << "  using uint = unsigned int;\n";
+  // decl_stream << "  using uchar = unsigned char;\n";
+  // decl_stream << "  using ushort = unsigned short;\n";
+  // decl_stream << "  using int64_t = long long;\n";
+  // decl_stream << "  using uint64_t = unsigned long long;\n";
+  // decl_stream << "#else\n";
+  // decl_stream << "  #define uint unsigned int\n";
+  // decl_stream << "  #define uchar unsigned char\n";
+  // decl_stream << "  #define ushort unsigned short\n";
+  // decl_stream << "  #define int64_t long long\n";
+  // decl_stream << "  #define uint64_t unsigned long long\n";
+  // decl_stream << "#endif\n";
 
   return CodeGenC::Finish();
 }
@@ -178,9 +174,10 @@ void CodeGenSDAA::BindThreadIndex(const IterVar& iv) {
 }
 
 void CodeGenSDAA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
+  //zly: adapt codegen_c_host::PrintType, as codegen_cuda is too complicated and sdaa cannot support.
   int lanes = t.lanes();
   if (t.is_handle()) {
-    ICHECK(t.is_scalar()) << "do not yet support vector types";
+    ICHECK_EQ(lanes, 1) << "does not support vector types";
     os << "void*";
     return;
   }
@@ -189,46 +186,18 @@ void CodeGenSDAA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     os << "void";
     return;
   }
-
+  if (t == DataType::Bool()) {
+    os << "bool";
+    return;
+  }
   bool fail = false;
   if (t.is_float()) {
     switch (t.bits()) {
       case 16:
-        enable_fp16_ = true;
-        if (t.is_scalar()) {
-          os << "half";
-        } else if (lanes <= 8) {
-          // Emit CUDA code to access fp16 vector elements.
-          //
-          // half4 is stored as uint2
-          //
-          // h4.x is emitted as *(half2*)(&(u2.x)).x
-          // h4.y is emitted as *(half2*)(&(u2.x)).y
-          // h4.z is emitted as *(half2*)(&(u2.y)).x
-          // h4.w is emitted as *(half2*)(&(u2.y)).y
-          //
-          ICHECK_EQ(lanes % 2, 0) << "only support even lane for half type";
-          os << "uint" << lanes / 2;
-        } else {
-          fail = true;
-        }
+        os << "_Float16";
         break;
       case 32:
-        if (lanes <= 4) {
-          os << "float";
-        } else if (lanes <= 8) {
-          // Emit CUDA code to access fp32 vector elements for 4 < lanes <= 8.
-          //
-          // float8 is stored as ulonglong4
-          //
-          // f8.v1 is emitted as *(float2*)(&(ul4.x)).x
-          // f8.v2 is emitted as *(float2*)(&(ul4.x)).y
-          //
-          ICHECK_EQ(lanes % 2, 0) << "only support even lane for float type with lanes > 4";
-          os << "ulonglong" << lanes / 2;
-        } else {
-          fail = true;
-        }
+        os << "float";
         break;
       case 64:
         os << "double";
@@ -237,179 +206,44 @@ void CodeGenSDAA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
         fail = true;
         break;
     }
-    if (!fail && (t.is_scalar() || t.bits() == 16)) return;
-    if (!fail && (lanes > 4 && lanes <= 8 && t.bits() == 32)) return;
-    if (!fail && (lanes >= 2 && lanes <= 4)) {
+    if (!fail && lanes == 1) return;
+    // zly: sdaa don't support vector types except one case that lanes == 16
+    if (!fail && (lanes >= 2 && lanes <= 16)) {
       os << lanes;
-      return;
-    }
-  } else if (t.is_bfloat16()) {
-    enable_bf16_ = true;
-    if (t.is_scalar()) {
-      os << "nv_bfloat16";
-    } else if (lanes <= 8) {
-      ICHECK_EQ(lanes % 2, 0) << "only support even lane for half type";
-      os << "uint" << lanes / 2;
-    } else {
-      fail = true;
-    }
-    if (!fail) return;
-  } else if (t == DataType::Bool()) {
-    os << "bool";
-    return;
-  } else if (t.is_vector_bool()) {
-    // CUDA does not support bool vectors.
-    // Use ushort vectors to represent instead.
-    int n = t.lanes();
-    if (n <= 4) {
-      os << "ushort" << n;
       return;
     }
   } else if (t.is_uint() || t.is_int()) {
     if (t.is_uint()) {
-      os << "u";
+      os << 'u';
     }
     switch (t.bits()) {
-      case 1: {
-        if (t.is_scalar()) {
-          os << "int";
-          return;
-        } else if (t.lanes() == 8) {
-          os << "int8_t";
-          return;
-        } else if (t.lanes() == 16) {
-          os << "int16_t";
-          return;
-        } else if (t.lanes() == 32) {
-          os << "int";
-          return;
-        } else {
-          LOG(FATAL) << "Cannot convert type " << t << " to CUDA type!";
-        }
-      }
-      case 4: {
-        if (t.is_scalar()) {
-          os << "int";
-          return;
-        } else if (t.lanes() == 4) {
-          os << "int16_t";
-          return;
-        } else if (t.lanes() == 8) {
-          // directly 8 4-bit int in integer.
-          os << "int";
-          return;
-        } else if (t.lanes() == 16) {
-          os << "int2";
-          return;
-        } else if (t.lanes() == 32) {
-          os << "int4";
-          return;
-        } else if (t.lanes() == 64) {
-          os << "int8";
-          return;
-        } else {
-          LOG(FATAL) << "Cannot convert type " << t << " to CUDA type!";
-        }
-      }
-      case 8: {
-        if (t.lanes() == 4) {
-          // directly 4 8 bit int in integer.
-          enable_int8_ = true;
-
-          // We use int for int8x4 instead of char4 because using char4 is
-          // likely to produce extra instructions to pack four int8 elements
-          // into 32-bit data.
-          os << "int";
-          return;
-        } else if (t.lanes() == 8) {
-          enable_int8_ = true;
-          os << "int2";
-          return;
-        } else if (t.lanes() == 16) {
-          enable_int8_ = true;
-          os << "int4";
-          return;
-        } else if (!t.is_uint() && t.is_scalar()) {
-          os << "signed char";
-          break;
-        } else {
-          os << "char";
-          break;
-        }
-      }
-      case 16: {
-        if (t.is_scalar()) {
-          os << "short";
-        } else if (t.lanes() <= 4) {
-          os << "short" << lanes;
-        } else if (t.lanes() <= 8) {
-          // Emit CUDA code to access int16 vector elements.
-          //
-          // short4 is stored as int2
-          //
-          // s4.x is emitted as *(short2*)(&(i2.x)).x
-          // s4.y is emitted as *(short2*)(&(i2.x)).y
-          // s4.z is emitted as *(short2*)(&(i2.y)).x
-          // s4.w is emitted as *(short2*)(&(i2.y)).y
-          //
-          ICHECK_EQ(t.lanes() % 2, 0) << "only support even lane for shorT type with lanes > 4";
-          os << "int" << t.lanes() / 2;
-        } else {
-          fail = true;
-        }
-        if (!fail) {
-          return;
-        }
+      case 8:
+        os << "int8_t";
         break;
-      }
-      case 32: {
-        if (t.is_scalar()) {
-          os << "int";
-        } else if (t.lanes() <= 4) {
-          os << "int" << t.lanes();
-        } else if (t.lanes() <= 8) {
-          // Emit CUDA code to access int32 vector elements for 4 < lanes <= 8.
-          //
-          // int8 is stored as longlong4
-          //
-          // i8.v1 is emitted as *(int2*)(&(l4.x)).x
-          // i8.v2 is emitted as *(int2*)(&(l4.x)).y
-          //
-          ICHECK_EQ(lanes % 2, 0) << "only support even lane for int32 type with lanes > 4";
-          os << "longlong" << lanes / 2;
-        } else {
-          fail = true;
-        }
-        if (!fail) {
-          return;
-        }
+      case 16:
+        os << "int16_t";
         break;
-      }
-      case 64: {
-        if (t.is_scalar()) {
-          os << "int64_t";
-        } else if (t.lanes() == 2) {
-          os << "longlong2";
-        } else if (t.lanes() == 3) {
-          os << "longlong3";
-        } else if (t.lanes() == 4) {
-          os << "longlong4";
-        }
-        return;
-      }
+      case 32:
+        os << "int32_t";
+        break;
+      case 64:
+        os << "int64_t";
+        break;
+      case 1:
+        os << "int32_t";
+        break;
       default:
         fail = true;
         break;
     }
-    if (!fail && lanes == 1) {
-      return;
-    }
-    if (!fail && (lanes >= 2 && lanes <= 4)) {
+    if (!fail && lanes == 1) return;
+    // zly: sdaa don't support vector types except one case that lanes == 16
+    if (!fail && (lanes >= 2 && lanes <= 16)) {
       os << lanes;
       return;
     }
   }
-  LOG(FATAL) << "Cannot convert type " << t << " to CUDA type";
+  LOG(FATAL) << "Cannot convert type " << t << " to sdaa type";
 }
 
 void CodeGenSDAA::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs, PrimExpr rhs,
