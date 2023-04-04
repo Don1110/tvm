@@ -287,6 +287,10 @@ inline const char* DeviceName(int type) {
       return "opengl";
     case kDLMicroDev:
       return "microdev";
+    case kDLSDAA:
+      return "sdaa";
+    case kDLSDAAHost:
+      return "sdaa_host";
     default:
       LOG(FATAL) << "unknown type =" << type;
   }

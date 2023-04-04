@@ -1,502 +1,490 @@
-// /*! \file sdaa_runtime.h
-// 	\author Andrew Kerr <arkerr@gatech.edu>
-// 	\brief implements an up-to-date SDAA Runtime API
-// 	\date 11 Dec 2009
-// */
+#ifndef INCLUDE_SDAA_SDAA_RUNTIME_H_
+#define INCLUDE_SDAA_SDAA_RUNTIME_H_
 
-#ifndef SDAA_RUNTIME_H_INCLUDED
-#define SDAA_RUNTIME_H_INCLUDED
-
-// C includes
-#include <string.h>
-#include <limits.h>
+#include <assert.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-// Ocelot includes
-//#include <ocelot/sdaa/interface/sdaaFatBinary.h>
-#include "sdaaFatBinary.h"
+#include "teco_detail/host_defines.h"
+#include "teco_detail/teco_sdaa_vector_types.h"
 
+
+/** Automatically select between Spin and Yield.*/
+#define sdaaDeviceScheduleAuto 0x0
+
+/** Dedicate a CPU core to spin-wait. Provides lowest latency, but burns a CPU core and may
+ * consume more power.*/
+#define sdaaDeviceScheduleSpin 0x1
+
+#define SDAA_LAUNCH_PARAM_BUFFER_POINTER ((void*)0x01)
+#define SDAA_LAUNCH_PARAM_BUFFER_SIZE ((void*)0x02)
+#define SDAA_LAUNCH_PARAM_END ((void*)0x00)
 
 #ifdef __cplusplus
+#define __dparm(x) = x
+#else
+#define __dparm(x)
+#endif  //__cplusplus
+
+// Structure definitions:
+#ifdef __cplusplus
 extern "C" {
-#endif
+#endif  //__cplusplus
 
 
-typedef int sdaaEvent_t;
-typedef int sdaaStream_t;
-//typedef unsigned int GLuint;
+// Flags that can be used with hipEventCreateWithFlags.
+/** Default flags.*/
+#define sdaaEventDefault 0x0
 
-#define sdaaHostAllocDefault        0   ///< Default page-locked allocation flag
-#define sdaaHostAllocPortable       1   ///< Pinned memory accessible by all SDAA contexts
-#define sdaaHostAllocMapped         2   ///< Map allocation into device space
-#define sdaaHostAllocWriteCombined  4   ///< Write-combined memory
+/** Waiting will yield CPU. Power-friendly and usage-friendly but may increase latency.*/
+#define sdaaEventBlockingSync 0x1
 
-#define sdaaEventDefault            0   ///< Default event flag
-#define sdaaEventBlockingSync       1   ///< Event uses blocking synchronization
+/** Disable event's capability to record timing information. May improve performance.*/
+#define sdaaEventDisableTiming 0x2
 
-#define sdaaDeviceScheduleAuto      0   ///< Device flag - Automatic scheduling
-#define sdaaDeviceScheduleSpin      1   ///< Device flag - Spin default scheduling
-#define sdaaDeviceScheduleYield     2   ///< Device flag - Yield default scheduling
-#define sdaaDeviceBlockingSync      4   ///< Device flag - Use blocking synchronization
-#define sdaaDeviceMapHost           8   ///< Device flag - Support mapped pinned allocations
-#define sdaaDeviceLmemResizeToMax   16  ///< Device flag - Keep local memory allocation after launch
-#define sdaaDeviceMask              0x1f ///< Device flags mask
+/** Event can support IPC. Warnig: It is not supported in HIP.*/
+#define sdaaEventInterprocess 0x4
 
-enum sdaaMemcpyKind {
-	sdaaMemcpyHostToHost = 0,
-	sdaaMemcpyHostToDevice = 1,
-	sdaaMemcpyDeviceToHost = 2,
-	sdaaMemcpyDeviceToDevice = 3
-};
+typedef struct sdaaDeviceProp_t {
+  char name[256];        /**< ASCII string identifying device */
+  size_t totalGlobalMem; /**< total memory on device in bytes */
+  int chipsetID;         /**< chip set id */
+  int pciDeviceID;       /**< PCI device ID of the device */
+  int pciVendor;         /**< PCI vendor ID of the device */
+  int pciBusID;          /**< PCI bus ID of the device */
+  int clockRate;         /**< Clock frequency in kilohertz */
+} sdaaDeviceProp_t;
 
-enum sdaaChannelFormatKind {
-	sdaaChannelFormatKindSigned = 0,
-	sdaaChannelFormatKindUnsigned = 1,
-	sdaaChannelFormatKindFloat = 2,
-	sdaaChannelFormatKindNone = 3
-};
+typedef sdaaDeviceProp_t sdaaDeviceProp;
 
-enum sdaaComputeMode {
-	sdaaComputeModeDefault,
-	sdaaComputeModeExclusive,
-	sdaaComputeModeProhibited
-};
-
-enum sdaaError
-{
-  sdaaSuccess                           =      0,   ///< No errors
-  sdaaErrorMissingConfiguration         =      1,   ///< Missing configuration error
-  sdaaErrorMemoryAllocation             =      2,   ///< Memory allocation error
-  sdaaErrorInitializationError          =      3,   ///< Initialization error
-  sdaaErrorLaunchFailure                =      4,   ///< Launch failure
-  sdaaErrorPriorLaunchFailure           =      5,   ///< Prior launch failure
-  sdaaErrorLaunchTimeout                =      6,   ///< Launch timeout error
-  sdaaErrorLaunchOutOfResources         =      7,   ///< Launch out of resources error
-  sdaaErrorInvalidDeviceFunction        =      8,   ///< Invalid device function
-  sdaaErrorInvalidConfiguration         =      9,   ///< Invalid configuration
-  sdaaErrorInvalidDevice                =     10,   ///< Invalid device
-  sdaaErrorInvalidValue                 =     11,   ///< Invalid value
-  sdaaErrorInvalidPitchValue            =     12,   ///< Invalid pitch value
-  sdaaErrorInvalidSymbol                =     13,   ///< Invalid symbol
-  sdaaErrorMapBufferObjectFailed        =     14,   ///< Map buffer object failed
-  sdaaErrorUnmapBufferObjectFailed      =     15,   ///< Unmap buffer object failed
-  sdaaErrorInvalidHostPointer           =     16,   ///< Invalid host pointer
-  sdaaErrorInvalidDevicePointer         =     17,   ///< Invalid device pointer
-  sdaaErrorInvalidChannelDescriptor     =     20,   ///< Invalid channel descriptor
-  sdaaErrorInvalidMemcpyDirection       =     21,   ///< Invalid memcpy direction
-  sdaaErrorAddressOfConstant            =     22,   ///< Address of constant error
-  sdaaErrorSynchronizationError         =     25,   ///< Synchronization error
-  sdaaErrorInvalidFilterSetting         =     26,   ///< Invalid filter setting
-  sdaaErrorInvalidNormSetting           =     27,   ///< Invalid norm setting
-  sdaaErrorMixedDeviceExecution         =     28,   ///< Mixed device execution
-  sdaaErrorSdaartUnloading              =     29,   ///< SDAA runtime unloading
-  sdaaErrorUnknown                      =     30,   ///< Unknown error condition
-  sdaaErrorNotYetImplemented            =     31,   ///< Function not yet implemented
-  sdaaErrorMemoryValueTooLarge          =     32,   ///< Memory value too large
-  sdaaErrorInvalidResourceHandle        =     33,   ///< Invalid resource handle
-  sdaaErrorNotReady                     =     34,   ///< Not ready error
-  sdaaErrorInsufficientDriver           =     35,   ///< SDAA runtime is newer than driver
-  sdaaErrorSetOnActiveProcess           =     36,   ///< Set on active process error
-  sdaaErrorNoDevice                     =     38,   ///< No available SDAA device
-  sdaaErrorECCUncorrectable             =     39,   ///< Uncorrectable ECC error detected
-  sdaaErrorStartupFailure               =   0x7f,   ///< Startup failure
-  sdaaErrorApiFailureBase               =  10000    ///< API failure base
-};
-
-typedef enum sdaaError sdaaError_t;
-
-enum sdaaLimit
-{
-    sdaaLimitStackSize      = 0x00, //< GPU thread stack size
-    sdaaLimitPrintfFifoSize = 0x01, //< GPU printf FIFO size
-    sdaaLimitMallocHeapSize = 0x02  //< GPU malloc heap size
-};
-
-
-#define sdaaDevIdle 0x0
-#define sdaaDevBusy 0x1
-#define sdaaDevError 0x2
-typedef int sdaaDevState;
-
-#define sdaaDevCgNoFault 0x0
-#define sdaaDevCgPmFault 0x1
-#define sdaaDevCgSpeFault 0x2
-#define sdaaDevCgMpeFault 0x3
-
-typedef int sdaaDevFaultType;
-
-struct uint3 {
-	unsigned int x, y, z;
-};
-
-struct dim3
-{
-    unsigned int x, y, z;
-#if defined(__cplusplus) && !defined(__SDAABE__)
-    dim3(unsigned int x = 1, unsigned int y = 1, unsigned int z = 1) : x(x), y(y), z(z) {}
-    dim3(uint3 v) : x(v.x), y(v.y), z(v.z) {}
-    operator uint3(void) { uint3 t; t.x = x; t.y = y; t.z = z; return t; }
-#endif
-};
-
-/*DEVICE_BUILTIN*/
-typedef struct dim3 dim3;
-
-struct sdaaExtent {
-	size_t width;
-	size_t height;
-	size_t depth;
-};
-
-struct sdaaDeviceProp
-{
-    char   name[256];                  /**< ASCII string identifying device */
-    size_t totalGlobalMem;             /**< Global memory available on device in bytes */
-    size_t memPitch;                   /**< Maximum pitch in bytes allowed by memory copies */
-    int    maxThreadsPerBlock;         /**< Maximum number of threads per block */
-    int    maxThreadsDim[3];           /**< Maximum size of each dimension of a block */
-    int    maxGridSize[3];             /**< Maximum size of each dimension of a grid */
-    int    clockRate;                  /**< Clock frequency in kilohertz */
-    size_t totalConstMem;              /**< Constant memory available on device in bytes */
-    int    major;                      /**< Major compute capability */
-    int    minor;                      /**< Minor compute capability */
-    int    deviceOverlap;              /**< Device can concurrently copy memory and execute a kernel. Deprecated. Use instead asyncEngineCount. */
-    int    multiProcessorCount;        /**< Number of multiprocessors on device */
-    int    kernelExecTimeoutEnabled;   /**< Specified whether there is a run time limit on kernels */
-    int    integrated;                 /**< Device is integrated as opposed to discrete */
-    int    canMapHostMemory;           /**< Device can map host memory with sdaaHostAlloc/sdaaHostGetDevicePointer */
-    int    computeMode;                /**< Compute mode (See ::sdaaComputeMode) */
-    int    concurrentKernels;          /**< Device can possibly execute multiple kernels concurrently */
-    int    ECCEnabled;                 /**< Device has ECC support enabled */
-    int    pciBusID;                   /**< PCI bus ID of the device */
-    int    pciDeviceID;                /**< PCI device ID of the device */
-    int    pciDomainID;                /**< PCI domain ID of the device */
-    int    tccDriver;                  /**< 1 if device is a Tesla device using TCC driver, 0 otherwise */
-    int    asyncEngineCount;           /**< Number of asynchronous engines */
-    int    unifiedAddressing;          /**< Device shares a unified address space with the host */
-    int    memoryClockRate;            /**< Peak memory clock frequency in kilohertz */
-    int    memoryBusWidth;             /**< Global memory bus width in bits */
-    int    maxThreadsPerMultiProcessor;/**< Maximum resident threads per multiprocessor */
-};
 
 /**
- * SDAA device attributes
+ * Memory type (for pointer attributes)
  */
-enum sdaaDeviceAttr
-{
-    sdaaDevAttrMaxPitch                       = 11, /**< Maximum pitch in bytes allowed by memory copies */
-    sdaaDevAttrClockRate                      = 13, /**< Peak clock frequency in kilohertz */
-    sdaaDevAttrGpuOverlap                     = 15, /**< Device can possibly copy memory and execute a kernel concurrently */
-    sdaaDevAttrKernelExecTimeout              = 17, /**< Specifies whether there is a run time limit on kernels */
-    sdaaDevAttrIntegrated                     = 18, /**< Device is integrated with host memory */
-    sdaaDevAttrComputeMode                    = 20, /**< Compute mode (See ::sdaaComputeMode for details) */
-    sdaaDevAttrSurfaceAlignment               = 30, /**< Alignment requirement for surfaces */
-    sdaaDevAttrConcurrentKernels              = 31, /**< Device can possibly execute multiple kernels concurrently */
-    sdaaDevAttrEccEnabled                     = 32, /**< Device has ECC support enabled */
-    sdaaDevAttrPciBusId                       = 33, /**< PCI bus ID of the device */
-    sdaaDevAttrPciDeviceId                    = 34, /**< PCI device ID of the device */
-    sdaaDevAttrTccDriver                      = 35, /**< Device is using TCC driver model */
-    sdaaDevAttrMemoryClockRate                = 36, /**< Peak memory clock frequency in kilohertz */
-    sdaaDevAttrGlobalMemoryBusWidth           = 37, /**< Global memory bus width in bits */
-    sdaaDevAttrL2CacheSize                    = 38, /**< Size of L2 cache in bytes */
-    sdaaDevAttrMaxThreadsPerMultiProcessor    = 39, /**< Maximum resident threads per multiprocessor */
-    sdaaDevAttrAsyncEngineCount               = 40, /**< Number of asynchronous engines */
-    sdaaDevAttrUnifiedAddressing              = 41, /**< Device shares a unified address space with the host */    
-    sdaaDevAttrPciDomainId                    = 50, /**< PCI domain ID of the device */
-    sdaaDevAttrMaxSurface1DWidth              = 55, /**< Maximum 1D surface width */
-    sdaaDevAttrMaxSurface1DLayeredWidth       = 61, /**< Maximum 1D layered surface width */
-    sdaaDevAttrMaxSurface1DLayeredLayers      = 62, /**< Maximum layers in a 1D layered surface */
-    sdaaDevAttrMaxSurfaceCubemapWidth         = 66, /**< Maximum cubemap surface width */
-    sdaaDevAttrMaxSurfaceCubemapLayeredWidth  = 67, /**< Maximum cubemap layered surface width */
-    sdaaDevAttrMaxSurfaceCubemapLayeredLayers = 68, /**< Maximum layers in a cubemap layered surface */
-    sdaaDevAttrComputeCapabilityMajor         = 75, /**< Major compute capability version number */ 
-    sdaaDevAttrComputeCapabilityMinor         = 76, /**< Minor compute capability version number */
-};
-
-struct sdaaFuncAttributes {
-   size_t sharedSizeBytes;  ///< Size of shared memory in bytes
-   size_t constSizeBytes;   ///< Size of constant memory in bytes
-   size_t localSizeBytes;   ///< Size of local memory in bytes
-   int maxThreadsPerBlock;  ///< Maximum number of threads per block
-   int numRegs;             ///< Number of registers used
-   int ptxVersion;          ///< PTX version number eq 21
-   int binaryVersion;       ///< binary version 
-};
-
-struct sdaaPitchedPtr {
-	void *ptr;
-	size_t pitch;
-	size_t xsize;
-	size_t ysize;
-};
-
-struct sdaaPos {
-	size_t x;
-	size_t y;
-	size_t z;
-};
+typedef enum sdaaMemoryType {
+  sdaaMemoryTypeUnregistered = 0,
+  sdaaMemoryTypeHost,    ///< Memory is physically located on host
+  sdaaMemoryTypeDevice,  ///< Memory is physically located on device. (see deviceId for specific
+} sdaaMemoryType;
 
 
-typedef struct SDuuid_st sdaaUUID_t;
+/**
+ * Pointer attributes
+ */
+typedef struct sdaaPointerAttributes {
+  enum sdaaMemoryType type;
+  int device;
+  void* devicePointer;
+  void* hostPointer;
+} sdaaPointerAttributes;
 
 /*
- * Function        : Select a load image from the __sdaaFat binary
- *                   that will run on the specified GPU.
- * Parameters      : binary  (I) Fat binary
- *                   policy  (I) Parameter influencing the selection process in case no
- *                               fully matching cubin can be found, but instead a choice can
- *                               be made between ptx compilation or selection of a
- *                               cubin for a less capable GPU.
- *                   gpuName (I) Name of target GPU
- *                   cubin   (O) Returned cubin text string, or NULL when 
- *                               no matching cubin for the specified gpu
- *                               could be found.
- *                   dbgInfo (O) If this parameter is not NULL upon entry, then
- *                               the name of a file containing debug information
- *                               on the returned cubin will be returned, or NULL 
- *                               will be returned when cubin or such debug info 
- *                               cannot be found.
+ * @brief sdaaDeviceAttribute_t
+ * @enum
+ * @ingroup Enumerations
  */
-void fatGetCubinForGpuWithPolicy( __sdaaFatSdaaBinary *binary, __sdaaFatCompilationPolicy policy, char* gpuName, char* *cubin, char* *dbgInfoFile );
+typedef enum sdaaDeviceAttribute_t {
+  sdaaDevAttrChipset = 0,
+  sdaaDevAttrPciVendor,
+  sdaaDevAttrPciBusId,
+  sdaaDevAttrPciDeviceId,
+  // Extended attributes for vendors
+} sdaaDeviceAttribute_t;
 
-#define fatGetCubinForGpu(binary,gpuName,cubin,dbgInfoFile) \
-          fatGetCubinForGpuWithPolicy(binary,__sdaaFatAvoidPTX,gpuName,cubin,dbgInfoFile)
+typedef int sdaaDevice_t;
 
-/*
- * Function        : Check if a binary will be JITed for the specified target architecture
- * Parameters      : binary  (I) Fat binary
- *                   policy  (I) Compilation policy, as described by fatGetCubinForGpuWithPolicy
- *                   gpuName (I) Name of target GPU
- *                   ptx     (O) PTX string to be JITed
- * Function Result : True if the given binary will be JITed; otherwise, False
+typedef struct isdaaStream_t* sdaaStream_t;
+
+typedef struct isdaaEvent_t* sdaaEvent_t;
+
+typedef struct isdaaModule_t* sdaaModule_t;
+
+typedef struct isdaaModuleSymbol_t* sdaaFunction_t;
+
+#define SDAA_IPC_HANDLE_SIZE 64
+typedef struct sdaaIpcEventHandle_st {
+  char reserved[SDAA_IPC_HANDLE_SIZE];
+} sdaaIpcEventHandle_t;
+
+typedef enum sdaaMemcpyKind {
+  sdaaMemcpyHostToHost = 0,      ///< Host-to-Host Copy
+  sdaaMemcpyHostToDevice = 1,    ///< Host-to-Device Copy
+  sdaaMemcpyDeviceToHost = 2,    ///< Device-to-Host Copy
+  sdaaMemcpyDeviceToDevice = 3,  ///< Device-to-Device Copy
+  sdaaMemcpyDefault = 4          ///< Runtime will automatically determine copy-kind
+                                 ///< based on virtual addresses.
+} sdaaMemcpyKind;
+
+enum sdaaStreamCaptureMode {
+  sdaaStreamCaptureModeGlobal = 0,
+  sdaaStreamCaptureModeThreadLocal,
+  sdaaStreamCaptureModeRelaxed
+};
+
+enum sdaaStreamCaptureStatus {
+  sdaaStreamCaptureStatusNone = 0,    ///< Stream is not capturing
+  sdaaStreamCaptureStatusActive,      ///< Stream is actively capturing
+  sdaaStreamCaptureStatusInvalidated  ///< Stream is part of a capture sequence
+                                      ///< that has been invalidated, but not
+                                      ///< terminated
+};
+
+//! Flags that can be used with hipStreamCreateWithFlags
+/** Default stream creation flags. These are used with hipStreamCreate().*/
+#define sdaaStreamDefault 0x00
+
+/** Stream does not implicitly synchronize with null stream.*/
+#define sdaaStreamNonBlocking 0x01
+
+// Developer note - when updating these, update the sdaaErrorName and
+// sdaaErrorString functions in NVCC and HCC paths Also update the
+// sdaaCUDAErrorTosdaaError function in NVCC path.
+
+typedef enum sdaaError_t {
+  sdaaSuccess = 0,            ///< Successful completion.
+  sdaaErrorInvalidValue = 1,  ///< One or more of the parameters passed to the API call is NULL
+                              ///< or not in an acceptable range.
+  sdaaErrorOutOfMemory = 2,
+  // Deprecated
+  sdaaErrorMemoryAllocation = 2,  ///< Memory allocation error.
+  sdaaErrorNotInitialized = 3,
+  // Deprecated
+  sdaaErrorInitializationError = 3,
+  sdaaErrorDeinitialized = 4,
+  sdaaErrorsdaartUnloading = 4,
+  sdaaErrorProfilerDisabled = 5,
+  sdaaErrorProfilerNotInitialized = 6,
+  sdaaErrorProfilerAlreadyStarted = 7,
+  sdaaErrorProfilerAlreadyStopped = 8,
+  sdaaErrorInvalidConfiguration = 9,
+  sdaaErrorInvalidPitchValue = 12,
+  sdaaErrorInvalidSymbol = 13,
+  sdaaErrorInvalidDevicePointer = 17,    ///< Invalid Device Pointer
+  sdaaErrorInvalidMemcpyDirection = 21,  ///< Invalid memory copy direction
+  sdaaErrorInsufficientDriver = 35,
+  sdaaErrorMissingConfiguration = 52,
+  sdaaErrorPriorLaunchFailure = 53,
+  sdaaErrorInvalidDeviceFunction = 98,
+  sdaaErrorNoDevice = 100,       ///< Call to sdaaGetDeviceCount returned 0 devices
+  sdaaErrorInvalidDevice = 101,  ///< DeviceID must be in range 0...#compute-devices.
+  sdaaErrorInvalidImage = 200,
+  sdaaErrorInvalidContext = 201,  ///< Produced when input context is invalid.
+  sdaaErrorContextAlreadyCurrent = 202,
+  sdaaErrorMapFailed = 205,
+  // Deprecated
+  sdaaErrorMapBufferObjectFailed = 205,  ///< Produced when the IPC memory attach failed from ROCr.
+  sdaaErrorUnmapFailed = 206,
+  sdaaErrorArrayIsMapped = 207,
+  sdaaErrorAlreadyMapped = 208,
+  sdaaErrorNoBinaryForGpu = 209,
+  sdaaErrorAlreadyAcquired = 210,
+  sdaaErrorNotMapped = 211,
+  sdaaErrorNotMappedAsArray = 212,
+  sdaaErrorNotMappedAsPointer = 213,
+  sdaaErrorECCNotCorrectable = 214,
+  sdaaErrorUnsupportedLimit = 215,
+  sdaaErrorContextAlreadyInUse = 216,
+  sdaaErrorPeerAccessUnsupported = 217,
+  sdaaErrorInvalidKernelFile = 218,  ///< In CUDA DRV, it is CUDA_ERROR_INVALID_PTX
+  sdaaErrorInvalidGraphicsContext = 219,
+  sdaaErrorInvalidSource = 300,
+  sdaaErrorFileNotFound = 301,
+  sdaaErrorSharedObjectSymbolNotFound = 302,
+  sdaaErrorSharedObjectInitFailed = 303,
+  sdaaErrorOperatingSystem = 304,
+  sdaaErrorInvalidHandle = 400,
+  // Deprecated
+  sdaaErrorInvalidResourceHandle = 400,  ///< Resource handle (sdaaEvent_t or sdaaStream_t) invalid.
+  sdaaErrorNotFound = 500,
+  sdaaErrorNotReady = 600,  ///< Indicates that asynchronous operations enqueued earlier are not
+                            ///< ready.  This is not actually an error, but is used to
+                            ///< distinguish from sdaaSuccess (which indicates completion). APIs
+                            ///< that return this error include sdaaEventQuery and
+                            ///< sdaaStreamQuery.
+  sdaaErrorIllegalAddress = 700,
+  sdaaErrorLaunchOutOfResources = 701,  ///< Out of resources error.
+  sdaaErrorLaunchTimeOut = 702,
+  sdaaErrorPeerAccessAlreadyEnabled =
+      704,  ///< Peer access was already enabled from the current device.
+  sdaaErrorPeerAccessNotEnabled = 705,  ///< Peer access was never enabled from the current device.
+  sdaaErrorSetOnActiveProcess = 708,
+  sdaaErrorContextIsDestroyed = 709,
+  sdaaErrorAssert = 710,  ///< Produced when the kernel calls assert.
+  sdaaErrorHostMemoryAlreadyRegistered =
+      712,  ///< Produced when trying to lock a page-locked memory.
+  sdaaErrorHostMemoryNotRegistered =
+      713,                       ///< Produced when trying to unlock a non-page-locked memory.
+  sdaaErrorLaunchFailure = 719,  ///< An exception occurred on the device while executing a kernel.
+  sdaaErrorCooperativeLaunchTooLarge = 720,  ///< This error indicates that the number of blocks
+                                             ///< launched per grid for a kernel that was launched
+                                             ///< via cooperative launch APIs exceeds the maximum
+                                             ///< number of allowed blocks for the current device
+  sdaaErrorNotSupported = 801,  ///< Produced when the sdaa API is not supported/implemented
+  sdaaErrorStreamCaptureUnsupported = 900,  ///< The operation is not permitted
+                                            ///< when the stream is capturing.
+  sdaaErrorStreamCaptureInvalidated = 901,  ///< The current capture sequence on the stream
+                                            ///< has been invalidated due to a previous error.
+  sdaaErrorStreamCaptureMerge = 902,        ///< The operation would have resulted in a merge of
+                                            ///< two independent capture sequences.
+  sdaaErrorStreamCaptureUnmatched = 903,    ///< The capture was not initiated in this stream.
+  sdaaErrorStreamCaptureUnjoined = 904,     ///< The capture sequence contains a fork that was not
+                                            ///< joined to the primary stream.
+  sdaaErrorStreamCaptureIsolation = 905,    ///< A dependency would have been created which crosses
+                                            ///< the capture sequence boundary. Only implicit
+                                            ///< in-stream ordering dependencies  are allowed
+                                            ///< to cross the boundary
+  sdaaErrorStreamCaptureImplicit = 906,     ///< The operation would have resulted in a disallowed
+                                            ///< implicit dependency on a current capture sequence
+                                            ///< from sdaaStreamLegacy.
+  sdaaErrorCapturedEvent = 907,  ///< The operation is not permitted on an event which was last
+                                 ///< recorded in a capturing stream.
+  sdaaErrorStreamCaptureWrongThread = 908,  ///< A stream capture sequence not initiated with
+                                            ///< the sdaaStreamCaptureModeRelaxed argument to
+                                            ///< sdaaStreamBeginCapture was passed to
+                                            ///< sdaaStreamEndCapture in a different thread.
+  sdaaErrorUnknown = 999,                   //< Unknown error.
+  // HSA Runtime Error Codes start here.
+  sdaaErrorRuntimeMemory = 1052,  ///< HSA runtime memory call returned error.
+                                  ///< Typically not seen in production systems.
+  sdaaErrorRuntimeOther = 1053,   ///< HSA runtime call other than memory returned error.  Typically
+                                  ///< not seen in production systems.
+  sdaaErrorTbd                    ///< Marker that more error codes are needed.
+} sdaaError_t;
+
+// Stream per thread
+/** Implicit stream per application thread.*/
+#define sdaaStreamPerThread ((sdaaStream_t)2)
+
+/**
+ * Struct for data in 3D
+ *
  */
-unsigned char fatCheckJitForGpuWithPolicy( __sdaaFatSdaaBinary *binary, __sdaaFatCompilationPolicy policy, char* gpuName, char* *ptx );
-
-#define fatCheckJitForGpu(binary,gpuName,ptx) \
-          fatCheckJitForGpuWithPolicy(binary,__sdaaFatAvoidPTX,gpuName,ptx)
-
-/*
- * Function        : Free information previously obtained via function fatGetCubinForGpu.
- * Parameters      : cubin   (I) Cubin text string to free
- *                   dbgInfo (I) Debug info filename to free, or NULL
- */
-void fatFreeCubin( char* cubin, char* dbgInfoFile );
+typedef struct dim3 {
+  uint32_t x;  ///< x
+  uint32_t y;  ///< y
+  uint32_t z;  ///< z
+#ifdef __cplusplus
+  constexpr __host__ __device__ dim3(uint32_t _x = 1, uint32_t _y = 1, uint32_t _z = 1)
+      : x(_x), y(_y), z(_z) {}
+#endif  //__cplusplus
+} dim3;
 
 
-/*******************************************************************************
-*                                                                              *
-*                                                                              *
-*                                                                              *
-*******************************************************************************/
-
-extern void** __sdaaRegisterFatBinary(void *fatCubin);
-
-extern void __sdaaUnregisterFatBinary(void **fatCubinHandle);
-
-
-extern void __sdaaRegisterFunction( void **binHandle, char *deviceFun);
+enum sdaaLimit {
+  // hipLimitStackSize = 0x0,        // limit device stack size
+  sdaaLimitPrintfFifoSize = 0x01,  // limit printf fifo size
+  // hipLimitMallocHeapSize = 0x02,  // limit heap size
+  sdaaLimitRange  // supported limit range
+};
 
 /*******************************************************************************
-*                                                                              *
-*                                                                              *
-*                                                                              *
-*******************************************************************************/
+ *                                                                              *
+ *            Device Management *
+ *                                                                              *
+ *******************************************************************************/
+sdaaError_t sdaaDeviceReset(void);
 
-extern sdaaError_t sdaaMemsetAsync(void *devPtr, int value, size_t count, sdaaStream_t stream);
+sdaaError_t sdaaSetDevice(int device);
 
+sdaaError_t sdaaGetDevice(int* device);
+
+sdaaError_t sdaaGetDeviceCount(int* count);
+
+sdaaError_t sdaaDeviceSynchronize(void);
+
+sdaaError_t sdaaGetDeviceProperties(sdaaDeviceProp_t* props, int device);
+
+sdaaError_t sdaaDeviceGetAttribute(int* value, sdaaDeviceAttribute_t attr, int device);
+
+sdaaError_t sdaaDeviceSetLimit(enum sdaaLimit limit, size_t value);
+
+sdaaError_t sdaaDeviceGetLimit(size_t* pValue, enum sdaaLimit limit);
+/*******************************************************************************
+ *                                                                              *
+ *               Error Handling *
+ *                                                                              *
+ *******************************************************************************/
+const char* sdaaGetErrorName(sdaaError_t error);
+const char* sdaaGetErrorString(sdaaError_t error);
+
+sdaaError_t sdaaGetLastError(void);
+
+sdaaError_t sdaaPeekAtLastError(void);
 
 /*******************************************************************************
-*                                                                              *
-*                                                                              *
-*                                                                              *
-*******************************************************************************/
+ *                                                                              *
+ *               Stream Management *
+ *                                                                              *
+ *******************************************************************************/
+sdaaError_t sdaaStreamCreate(sdaaStream_t* stream);
 
-extern sdaaError_t sdaaMalloc(void **devPtr, size_t size);
-extern sdaaError_t sdaaMallocHost(void **ptr, size_t size);
-extern sdaaError_t sdaaFree(void *devPtr);
-extern sdaaError_t sdaaFreeHost(void *ptr);
+sdaaError_t sdaaStreamCreateWithFlags(sdaaStream_t* pStream, unsigned int flags);
 
-extern sdaaError_t sdaaPrintInfo(void *addr, unsigned long size, unsigned int type, sdaaStream_t stream);
-//sdaa IPC memory handle api
-extern sdaaError_t  sdaaMemGetP2PAddr(void **addr, void *p); 
-extern sdaaError_t  sdaaMemGetPhysAddr(void **addr, void *p); 
-extern sdaaError_t  sdaaIpcGetMemHandle(int *mem_handle, void *devPtr); 
-extern sdaaError_t  sdaaIpcOpenMemHandle(void** devPtr, int handle, unsigned int flags);
-extern sdaaError_t  sdaaIpcCloseMemHandle(void* devPtr);
+sdaaError_t sdaaStreamDestroy(sdaaStream_t stream);
 
-extern sdaaError_t sdaaHostAlloc(void **pHost, size_t bytes, unsigned int flags);
-extern sdaaError_t sdaaHostGetFlags(unsigned int *pFlags, void *pHost);
+sdaaError_t sdaaStreamSynchronize(sdaaStream_t stream __dparm(0));
 
-#if 0
-extern sdaaError_t sdaaHostGetDevicePointer(void **pDevice, void *pHost, 
-	unsigned int flags);
-extern sdaaError_t sdaaHostRegister(void *pHost, size_t bytes, unsigned int flags);
-extern sdaaError_t sdaaHostUnregister(void *pHost);
-#endif
+sdaaError_t sdaaStreamQuery(sdaaStream_t stream);
+
+sdaaError_t sdaaStreamGetFlags(sdaaStream_t stream, unsigned int* flags);
+
+sdaaError_t sdaaStreamWaitEvent(sdaaStream_t stream, sdaaEvent_t event, unsigned int flags);
+
+typedef void (*sdaaStreamCallback_t)(sdaaStream_t stream, sdaaError_t status, void* userData);
+sdaaError_t sdaaStreamAddCallback(sdaaStream_t stream, sdaaStreamCallback_t callback,
+                                  void* userData, unsigned int flags);
 
 /*******************************************************************************
-*                                                                              *
-*                                                                              *
-*                                                                              *
-*******************************************************************************/
+ *                                                                              *
+ *               Event Management *
+ *                                                                              *
+ *******************************************************************************/
 
-extern sdaaError_t sdaaMemcpy(void *dst, const void *src, size_t count, 
-	enum sdaaMemcpyKind kind);
+sdaaError_t sdaaEventCreate(sdaaEvent_t* event);
 
-/*******************************************************************************
-*                                                                              *
-*                                                                              *
-*                                                                              *
-*******************************************************************************/
+sdaaError_t sdaaEventRecord(sdaaEvent_t event, sdaaStream_t stream __dparm(0));
 
-extern sdaaError_t sdaaMemcpyAsync(void *dst, const void *src, size_t count, 
-	enum sdaaMemcpyKind kind, sdaaStream_t stream);
-/*******************************************************************************
-*                                                                              *
-*                                                                              *
-*                                                                              *
-*******************************************************************************/
+sdaaError_t sdaaEventDestroy(sdaaEvent_t event);
 
-extern sdaaError_t sdaaMemset(void *devPtr, int value, size_t count);
+sdaaError_t sdaaEventQuery(sdaaEvent_t event);
 
-/*******************************************************************************
-*                                                                              *
-*                                                                              *
-*                                                                              *
-*******************************************************************************/
+sdaaError_t sdaaEventSynchronize(sdaaEvent_t event);
 
-#if 0
-extern sdaaError_t sdaaGetSymbolAddress(void **devPtr, const char *symbol);
-extern sdaaError_t sdaaGetSymbolSize(size_t *size, const char *symbol);
-#endif
-/*******************************************************************************
-*                                                                              *
-*                                                                              *
-*                                                                              *
-*******************************************************************************/
+sdaaError_t sdaaEventElapsedTime(float* ms, sdaaEvent_t start, sdaaEvent_t end);
 
-extern sdaaError_t sdaaGetDeviceCount(int *count);
-extern sdaaError_t sdaaGetDeviceProperties(struct sdaaDeviceProp *prop, int device);
-extern sdaaError_t sdaaChooseDevice(int *device, const struct sdaaDeviceProp *prop);
-extern sdaaError_t sdaaSetDevice(int device);
-extern sdaaError_t sdaaGetDevice(int *device);
-extern sdaaError_t sdaaSetValidDevices(int *device_arr, int len);
-extern sdaaError_t sdaaSetDeviceFlags( int flags );
-extern sdaaError_t sdaaGetDeviceState(sdaaDevState *device_state, sdaaDevFaultType *fault_type, unsigned long *cg_fault_reg);
-extern sdaaError_t sdaaDeviceGetAttribute( int* value, enum sdaaDeviceAttr attrbute,
-	int device );
+sdaaError_t sdaaEventCreateWithFlags(sdaaEvent_t* event, unsigned flags);
+
+sdaaError_t sdaaIpcGetEventHandle(sdaaIpcEventHandle_t* handle, sdaaEvent_t event);
+
+sdaaError_t sdaaIpcOpenEventHandle(sdaaEvent_t* event, sdaaIpcEventHandle_t handle);
 
 
+// *******************************************************************************
+//  *                                                                              *
+//  *               Execution Control *
+//  *                                                                              *
+// *******************************************************************************/
+sdaaError_t sdaaModuleLoad(sdaaModule_t* module, const char* fname);
 
-/*******************************************************************************
-*                                                                              *
-*                                                                              *
-*                                                                              *
-*******************************************************************************/
+sdaaError_t sdaaModuleUnload(sdaaModule_t module);
+sdaaError_t sdaaModuleGetFunction(sdaaFunction_t* hfunc, sdaaModule_t hmod, const char* name);
+sdaaError_t sdaaModuleLaunchKernel(sdaaFunction_t f, int core_num, sdaaStream_t hStream,
+                                   void** kernelParams);
 
-/*******************************************************************************
-*                                                                              *
-*                                                                              *
-*                                                                              *
-*******************************************************************************/
+/* for compiler */
+void** __sdaaRegisterFatBinary(const void* data);
+void __sdaaUnregisterFatBinary(void** module);
+void __sdaaRegisterFunction(void** modules, const void* hostFunction, char* deviceFunction,
+                            const char* deviceName);
 
-extern sdaaError_t sdaaGetLastError(void);
-extern sdaaError_t sdaaPeekAtLastError();
-extern const char* sdaaGetErrorString(sdaaError_t error);
+sdaaError_t __sdaaPushCallConfiguration(size_t sharedMem, sdaaStream_t stream __dparm(0));
+sdaaError_t __sdaaPopCallConfiguration(size_t* sharedMem, sdaaStream_t* stream);
+sdaaError_t sdaaSetupArgument(const void* arg, size_t size, size_t offset);
+sdaaError_t sdaaLaunchKernel(const void* function_address, void** args,
+                             size_t sharedMemBytes __dparm(0), sdaaStream_t stream __dparm(0));
+// *******************************************************************************
+//  *                                                                              *
+//  *               Memory Management *
+//  *                                                                              *
+// *******************************************************************************/
 
-/*******************************************************************************
-*                                                                              *
-*                                                                              *
-*                                                                              *
-*******************************************************************************/
+sdaaError_t sdaaMalloc(void** ptr, size_t size);
 
-//extern sdaaError_t sdaaConfigureCall(dim3 gridDim, dim3 blockDim, 
-//	size_t sharedMem = 0, sdaaStream_t stream = 0);
-extern sdaaError_t sdaaConfigureCall(int arrayNum);
-extern sdaaError_t sdaaSetupArgument(const void *arg, size_t size, 
-	size_t offset);
-extern sdaaError_t sdaaLaunch(const char *entry);
-extern sdaaError_t sdaaLaunchAsync(const char *entry, sdaaStream_t stream);
-extern sdaaError_t sdaaFuncGetAttributes(struct sdaaFuncAttributes *attr, 
-	const char *func);
-extern sdaaError_t sdaaStreamWaitEvent(sdaaStream_t stream, sdaaEvent_t event, unsigned int flags);
+sdaaError_t sdaaMallocPitch(void** ptr, size_t* pitch, size_t width, size_t height);
 
-/*******************************************************************************
-*                                                                              *
-*                                                                              *
-*                                                                              *
-*******************************************************************************/
+sdaaError_t sdaaMallocHost(void** ptr, size_t size);
 
-extern sdaaError_t sdaaStreamCreate(sdaaStream_t *pStream);
-extern sdaaError_t sdaaStreamDestroy(sdaaStream_t stream);
-extern sdaaError_t sdaaStreamSynchronize(sdaaStream_t stream);
-extern sdaaError_t sdaaStreamQuery(sdaaStream_t stream);
+sdaaError_t sdaaMallocCross(void** ptr, size_t size);
 
-/*******************************************************************************
-*                                                                              *
-*                                                                              *
-*                                                                              *
-*******************************************************************************/
+sdaaError_t sdaaFree(void* ptr);
 
-extern sdaaError_t sdaaEventCreate(sdaaEvent_t *event);
-extern sdaaError_t sdaaEventCreateWithFlags(sdaaEvent_t *event, int flags);
-extern sdaaError_t sdaaEventRecord(sdaaEvent_t event, sdaaStream_t stream);
-extern sdaaError_t sdaaEventQuery(sdaaEvent_t event);
-extern sdaaError_t sdaaEventSynchronize(sdaaEvent_t event);
-extern sdaaError_t sdaaEventDestroy(sdaaEvent_t event);
-extern sdaaError_t sdaaEventElapsedTime(float *ms, sdaaEvent_t start, sdaaEvent_t end);
+sdaaError_t sdaaFreeHost(void* ptr);
+
+sdaaError_t sdaaMemcpy(void* dst, const void* src, size_t sizeBytes, sdaaMemcpyKind kind);
+
+sdaaError_t sdaaMemcpyAsync(void* dst, const void* src, size_t sizeBytes, sdaaMemcpyKind kind,
+                            sdaaStream_t stream __dparm(0));
+sdaaError_t sdaaMemcpy2D(void* dst, size_t dpitch, const void* src, size_t spitch, size_t width,
+                         size_t height, enum sdaaMemcpyKind kind);
+
+sdaaError_t sdaaMemcpy2DAsync(void* dst, size_t dpitch, const void* src, size_t spitch,
+                              size_t width, size_t height, enum sdaaMemcpyKind kind,
+                              sdaaStream_t stream);
+
+sdaaError_t sdaaMemset(void* dst, int value, size_t sizeBytes);
+
+sdaaError_t sdaaMemsetAsync(void* dst, int value, size_t sizeBytes, sdaaStream_t stream __dparm(0));
+
+sdaaError_t sdaaMemsetD8(void* dst, unsigned char value, size_t count);
+
+sdaaError_t sdaaMemsetD16(void* dst, unsigned short value, size_t count);
+
+sdaaError_t sdaaMemsetD32(void* dst, unsigned int value, size_t count);
+
+sdaaError_t sdaaMemGetInfo(size_t* free, size_t* total);
+
+sdaaError_t sdaaPointerGetAttributes(sdaaPointerAttributes* attributes, const void* ptr);
+
+// *******************************************************************************
+//  *                                                                              *
+//  *               Version Management *
+//  *                                                                              *
+// *******************************************************************************/
+
+sdaaError_t sdaaRuntimeGetVersion(int* runtimeVersion);
+
+sdaaError_t sdaaDriverGetVersion(int* driverVersion);
+
+#define KNRM "\x1B[0m"
+#define KRED "\x1B[31m"
+#define KGRN "\x1B[32m"
+#define KYEL "\x1B[33m"
+#define KBLU "\x1B[34m"
+#define KMAG "\x1B[35m"
+#define KCYN "\x1B[36m"
+#define KWHT "\x1B[37m"
+
+#define SDAACHECK(error)                                                                           \
+  {                                                                                                \
+    sdaaError_t localError = error;                                                                \
+    if ((localError != sdaaSuccess) && (localError != sdaaErrorPeerAccessAlreadyEnabled)) {        \
+      printf("%serror: '%s'(%d) from %s at %s:%d%s\n", KRED, sdaaGetErrorString(localError),       \
+             localError, #error, __FUNCTION__, __LINE__, KNRM);                                    \
+      exit(EXIT_FAILURE);                                                                          \
+    }                                                                                              \
+  }
+
+// 暂时向老接口兼容，checkSdaaErrors 后期会被废止
+#define checkSdaaErrors SDAACHECK
 
 
-/*******************************************************************************
-*                                                                              *
-*                                                                              *
-*                                                                              *
-*******************************************************************************/
-
-
-/*******************************************************************************
-*                                                                              *
-*                                                                              *
-*                                                                              *
-*******************************************************************************/
-#if 0
-extern sdaaError_t sdaaSetDoubleForDevice(double *d);
-extern sdaaError_t sdaaSetDoubleForHost(double *d);
-#endif
-/*******************************************************************************
-*                                                                              *
-*                                                                              *
-*                                                                              *
-*******************************************************************************/
-
-extern sdaaError_t sdaaDeviceReset(void);
-extern sdaaError_t sdaaDeviceSynchronize(void);
-extern sdaaError_t sdaaDeviceSetLimit(enum sdaaLimit limit, size_t value);
-extern sdaaError_t sdaaDeviceGetLimit(size_t *pValue, enum sdaaLimit limit);
-
-extern sdaaError_t sdaaThreadExit(void);
-extern sdaaError_t sdaaThreadSynchronize(void);
-
-/*******************************************************************************
-*                                                                              *
-*                                                                              *
-*                                                                              *
-*******************************************************************************/
-
-extern sdaaError_t sdaaDriverGetVersion(int *driverVersion);
-extern sdaaError_t sdaaRuntimeGetVersion(int *runtimeVersion);
-
-#define checkSdaaErrors( a ) do { \
-    if (sdaaSuccess != (a)) { \
-    fprintf(stderr, "Sdaa runtime error in line %d of file %s \
-    : %s \n", __LINE__, __FILE__, sdaaGetErrorString(sdaaGetLastError()) ); \
-    exit(EXIT_FAILURE); \
-    } \
-    } while(0);
-
+// Structure definitions:
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+// /**
+//  * @brief: C++ wrapper for hipMalloc
+//  *
+//  * Perform automatic type conversion to eliminate need for excessive typecasting (ie void**)
+//  *
+//  * __HIP_DISABLE_CPP_FUNCTIONS__ macro can be defined to suppress these
+//  * wrappers. It is useful for applications which need to obtain decltypes of
+//  * HIP runtime APIs.
+//  *
+//  * @see sdaaMalloc
+//  */
+#if defined(__cplusplus)
+template <class T> static inline sdaaError_t sdaaMalloc(T** devPtr, size_t size) {
+  return sdaaMalloc((void**)devPtr, size);
+}
 
+// Provide an override to automatically typecast the pointer type from void**, and also provide a
+// default for the flags.
+template <class T> static inline sdaaError_t sdaaMallocHost(T** ptr, size_t size) {
+  return sdaaMallocHost((void**)ptr, size);
+}
+
+#endif  //__cplusplus
+#endif  // INCLUDE_SDAA_SDAA_RUNTIME_H_

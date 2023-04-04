@@ -20,7 +20,7 @@
 /*!
  * \file cuda_module.cc
  */
-#include "cuda_module.h"
+// #include "cuda_module.h"
 
 // #include <sdaa.h>
 #include <sdaa_runtime.h>
@@ -37,7 +37,10 @@
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
 #include "sdaa_common.h"
+#include "sdaa_module.h"
 
+#define SDAA_SUCCESS 0
+#define SDAA_ERROR_DEINITIALIZED 4
 namespace tvm {
 namespace runtime {
 
@@ -58,7 +61,7 @@ class SDAAModuleNode : public runtime::ModuleNode {
     for (size_t i = 0; i < module_.size(); ++i) {
       if (module_[i] != nullptr) {
         SDAA_CALL(sdaaSetDevice(static_cast<int>(i)));
-        SDAA_DRIVER_CALL(sdModuleUnload(module_[i]));
+        SDAA_DRIVER_CALL(sdaaModuleUnload(module_[i]));
       }
     }
   }
@@ -100,41 +103,40 @@ class SDAAModuleNode : public runtime::ModuleNode {
   
 // add
 
-  // get a SDfunction from primary context in device_id
-  SDfunction GetFunc(int device_id, const std::string& func_name) {
+  // get a sdaaFunction_t from primary context in device_id
+  sdaaFunction_t GetFunc(int device_id, const std::string& func_name) {
     std::lock_guard<std::mutex> lock(mutex_);
     // must recheck under the lock scope
     if (module_[device_id] == nullptr) {
-      SDAA_DRIVER_CALL(SDmoduleLoadData(&(module_[device_id]), data_.c_str()));
+      SDAA_DRIVER_CALL(sdaaModuleLoad(&(module_[device_id]), data_.c_str()));
     }
-    SDfunction func;
-    SDresult result = sdaaModuleGetFunction(&func, module_[device_id], func_name.c_str());
+    sdaaFunction_t func;
+    sdaaError_t result = sdaaModuleGetFunction(&func, module_[device_id], func_name.c_str());
     if (result != SDAA_SUCCESS) {
-      const char* msg;
-      cuGetErrorName(result, &msg);
+      const char* msg = sdaaGetErrorName(result);
       LOG(FATAL) << "CUDAError: SDmoduleGetFunction " << func_name << " failed with error: " << msg;
     }
     return func;
   }
   // get a global var from primary context in device_id
-  SDdeviceptr GetGlobal(int device_id, const std::string& global_name, size_t expect_nbytes) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    // must recheck under the lock scope
-    if (module_[device_id] == nullptr) {
-      SDAA_DRIVER_CALL(SDmoduleLoadData(&(module_[device_id]), data_.c_str()));
-    }
-    SDdeviceptr global;
-    size_t nbytes;
+  // SDdeviceptr GetGlobal(int device_id, const std::string& global_name, size_t expect_nbytes) {
+  //   std::lock_guard<std::mutex> lock(mutex_);
+  //   // must recheck under the lock scope
+  //   if (module_[device_id] == nullptr) {
+  //     SDAA_DRIVER_CALL(SDmoduleLoadData(&(module_[device_id]), data_.c_str()));
+  //   }
+  //   SDdeviceptr global;
+  //   size_t nbytes;
 
-    SDresult result = SDmoduleGetGlobal(&global, &nbytes, module_[device_id], global_name.c_str());
-    ICHECK_EQ(nbytes, expect_nbytes);
-    if (result != SDAA_SUCCESS) {
-      const char* msg;
-      cuGetErrorName(result, &msg);
-      LOG(FATAL) << "CUDAError: SDmoduleGetGlobal " << global_name << " failed with error: " << msg;
-    }
-    return global;
-  }
+  //   sdaaModule_t result = SDmoduleGetGlobal(&global, &nbytes, module_[device_id], global_name.c_str());
+  //   ICHECK_EQ(nbytes, expect_nbytes);
+  //   if (result != SDAA_SUCCESS) {
+  //     const char* msg;
+  //     cuGetErrorName(result, &msg);
+  //     LOG(FATAL) << "CUDAError: SDmoduleGetGlobal " << global_name << " failed with error: " << msg;
+  //   }
+  //   return global;
+  // }
 
  private:
   // the binary data
@@ -146,7 +148,7 @@ class SDAAModuleNode : public runtime::ModuleNode {
   // The cuda source.
   std::string cuda_source_;
   // the internal modules per GPU, to be lazily initialized.
-  std::array<SDmodule, kMaxNumGPUs> module_;
+  std::array<sdaaModule_t, kMaxNumGPUs> module_;
   // internal mutex when updating the module
   std::mutex mutex_;
 };
@@ -169,26 +171,24 @@ class CUDAWrappedFunc {
     SDAA_CALL(sdaaGetDevice(&device_id));
     ThreadWorkLoad wl = launch_param_config_.Extract(args);
 
-    if (fcache_[device_id] == nullptr) {
-      fcache_[device_id] = m_->GetFunc(device_id, func_name_);
-      if (wl.dyn_shmem_size >= (48 << 10)) {
-        // Assumption: dyn_shmem_size doesn't change across different invocations of
-        // fcache_[device_id]
-        SDresult result = cuFuncSetAttribute(
-            fcache_[device_id], CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES, wl.dyn_shmem_size);
-        if (result != SDAA_SUCCESS) {
-          LOG(FATAL) << "Failed to set the allowed dynamic shared memory size to "
-                     << wl.dyn_shmem_size;
-        }
-      }
-    }
-    SDstream strm = static_cast<SDstream>(SDAAThreadEntry::ThreadLocal()->stream);
-    SDresult result = sdLaunchKernel(fcache_[device_id], wl.grid_dim(0), wl.grid_dim(1),
-                                     wl.grid_dim(2), wl.block_dim(0), wl.block_dim(1),
-                                     wl.block_dim(2), wl.dyn_shmem_size, strm, void_args, nullptr);
+    // if (fcache_[device_id] == nullptr) {
+    //   fcache_[device_id] = m_->GetFunc(device_id, func_name_);
+    //   if (wl.dyn_shmem_size >= (48 << 10)) {
+    //     // Assumption: dyn_shmem_size doesn't change across different invocations of
+    //     // fcache_[device_id]
+    //     sdaaModule_t result = cuFuncSetAttribute(
+    //         fcache_[device_id], CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES, wl.dyn_shmem_size);
+    //     if (result != SDAA_SUCCESS) {
+    //       LOG(FATAL) << "Failed to set the allowed dynamic shared memory size to "
+    //                  << wl.dyn_shmem_size;
+    //     }
+    //   }
+    // }
+    sdaaStream_t strm = static_cast<sdaaStream_t>(SDAAThreadEntry::ThreadLocal()->stream);
+    //第二个参数arrayNum [in]：所需核组个数，取值目前只支持1核组
+    sdaaError_t result = sdaaModuleLaunchKernel(fcache_[device_id], 1, strm, void_args);
     if (result != SDAA_SUCCESS && result != SDAA_ERROR_DEINITIALIZED) {
-      const char* msg;
-      cuGetErrorName(result, &msg);
+      const char* msg = sdaaGetErrorName(result);
       std::ostringstream os;
       os << "CUDALaunch Error: " << msg << "\n"
          << " grid=(" << wl.grid_dim(0) << "," << wl.grid_dim(1) << "," << wl.grid_dim(2) << "), "
@@ -214,42 +214,42 @@ class CUDAWrappedFunc {
   std::string func_name_;
   // Device function cache per device.
   // mark as mutable, to enable lazy initialization
-  mutable std::array<SDfunction, kMaxNumGPUs> fcache_;
+  mutable std::array<sdaaFunction_t, kMaxNumGPUs> fcache_;
   // launch parameters configuration
   LaunchParamConfig launch_param_config_;
 };
 
-class CUDAPrepGlobalBarrier {
- public:
-  CUDAPrepGlobalBarrier(SDAAModuleNode* m, ObjectPtr<Object> sptr) : m_(m), sptr_(sptr) {
-    std::fill(pcache_.begin(), pcache_.end(), 0);
-  }
+// class CUDAPrepGlobalBarrier {
+//  public:
+//   CUDAPrepGlobalBarrier(SDAAModuleNode* m, ObjectPtr<Object> sptr) : m_(m), sptr_(sptr) {
+//     std::fill(pcache_.begin(), pcache_.end(), 0);
+//   }
 
-  void operator()(const TVMArgs& args, TVMRetValue* rv) const {
-    int device_id;
-    SDAA_CALL(sdaaGetDevice(&device_id));
-    if (pcache_[device_id] == 0) {
-      pcache_[device_id] =
-          m_->GetGlobal(device_id, runtime::symbol::tvm_global_barrier_state, sizeof(unsigned));
-    }
-    SDAA_DRIVER_CALL(cuMemsetD32(pcache_[device_id], 0, 1));
-  }
+//   void operator()(const TVMArgs& args, TVMRetValue* rv) const {
+//     int device_id;
+//     SDAA_CALL(sdaaGetDevice(&device_id));
+//     if (pcache_[device_id] == 0) {
+//       pcache_[device_id] =
+//           m_->GetGlobal(device_id, runtime::symbol::tvm_global_barrier_state, sizeof(unsigned));
+//     }
+//     SDAA_DRIVER_CALL(sdaaMemset(pcache_[device_id], 0, 1));
+//   }
 
- private:
-  // internal module
-  SDAAModuleNode* m_;
-  // the resource holder
-  ObjectPtr<Object> sptr_;
-  // mark as mutable, to enable lazy initialization
-  mutable std::array<SDdeviceptr, kMaxNumGPUs> pcache_;
-};
+//  private:
+//   // internal module
+//   SDAAModuleNode* m_;
+//   // the resource holder
+//   ObjectPtr<Object> sptr_;
+//   // mark as mutable, to enable lazy initialization
+//   // mutable std::array<SDdeviceptr, kMaxNumGPUs> pcache_;
+// };
 
 PackedFunc SDAAModuleNode::GetFunction(const std::string& name,
                                        const ObjectPtr<Object>& sptr_to_self) {
   ICHECK_EQ(sptr_to_self.get(), this);
   ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
   if (name == symbol::tvm_prepare_global_barrier) {
-    return PackedFunc(CUDAPrepGlobalBarrier(this, sptr_to_self));
+    // return PackedFunc(CUDAPrepGlobalBarrier(this, sptr_to_self));
   }
   auto it = fmap_.find(name);
   if (it == fmap_.end()) return PackedFunc();

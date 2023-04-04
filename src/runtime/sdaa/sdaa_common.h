@@ -24,7 +24,7 @@
 #ifndef TVM_RUNTIME_CUDA_CUDA_COMMON_H_
 #define TVM_RUNTIME_CUDA_CUDA_COMMON_H_
 
-#include <sdaa.h>
+// #include <sdaa.h>
 #include <tvm/runtime/packed_func.h>
 
 #include <string>
@@ -36,10 +36,9 @@ namespace runtime {
 
 #define SDAA_DRIVER_CALL(x)                                             \
   {                                                                     \
-    SDresult result = x;                                                \
+    sdaaError_t result = x;                                                \
     if (result != SDAA_SUCCESS && result != SDAA_ERROR_DEINITIALIZED) { \
-      const char* msg;                                                  \
-      sdaaGetErrorName(result, &msg);                                     \
+      const char* msg = sdaaGetErrorName(result);                                     \
       LOG(FATAL) << "SDAAError: " #x " failed with error: " << msg;     \
     }                                                                   \
   }
@@ -47,7 +46,7 @@ namespace runtime {
 #define SDAA_CALL(func)                                       \
   {                                                           \
     sdaaError_t e = (func);                                   \
-    ICHECK(e == sdaaSuccess || e == sdaaErrorSdaartUnloading) \
+    ICHECK(e == sdaaSuccess || e == sdaaErrorsdaartUnloading) \
         << "SDAA: " << sdaaGetErrorString(e);                 \
   }
 

@@ -42,51 +42,51 @@ class CUDADeviceAPI final : public DeviceAPI {
     int value = 0;
     switch (kind) {
       case kExist:
-        value = (sdaaDeviceGetAttribute(&value, cudaDevAttrMaxThreadsPerBlock, dev.device_id) ==
-                 sdaaSuccess);
+        // value = (sdaaDeviceGetAttribute(&value, cudaDevAttrMaxThreadsPerBlock, dev.device_id) ==
+        //          sdaaSuccess);
         break;
       case kMaxThreadsPerBlock: {
-        SDAA_CALL(sdaaDeviceGetAttribute(&value, cudaDevAttrMaxThreadsPerBlock, dev.device_id));
-        break;
+        // SDAA_CALL(sdaaDeviceGetAttribute(&value, cudaDevAttrMaxThreadsPerBlock, dev.device_id));
+        // break;
       }
       case kWarpSize: {
-        SDAA_CALL(sdaaDeviceGetAttribute(&value, cudaDevAttrWarpSize, dev.device_id));
-        break;
+        // SDAA_CALL(sdaaDeviceGetAttribute(&value, cudaDevAttrWarpSize, dev.device_id));
+        // break;
       }
       case kMaxSharedMemoryPerBlock: {
-        SDAA_CALL(
-            sdaaDeviceGetAttribute(&value, cudaDevAttrMaxSharedMemoryPerBlock, dev.device_id));
+        // SDAA_CALL(
+        //     sdaaDeviceGetAttribute(&value, cudaDevAttrMaxSharedMemoryPerBlock, dev.device_id));
         break;
       }
       case kComputeVersion: {
         std::ostringstream os;
-        SDAA_CALL(sdaaDeviceGetAttribute(&value, cudaDevAttrComputeCapabilityMajor, dev.device_id));
+        // SDAA_CALL(sdaaDeviceGetAttribute(&value, cudaDevAttrComputeCapabilityMajor, dev.device_id));
         os << value << ".";
-        SDAA_CALL(sdaaDeviceGetAttribute(&value, cudaDevAttrComputeCapabilityMinor, dev.device_id));
+        // SDAA_CALL(sdaaDeviceGetAttribute(&value, cudaDevAttrComputeCapabilityMinor, dev.device_id));
         os << value;
         *rv = os.str();
         return;
       }
       case kDeviceName: {
         std::string name(256, 0);
-        SDAA_DRIVER_CALL(sdDeviceGetName(&name[0], name.size(), dev.device_id));
+        // SDAA_DRIVER_CALL(sdDeviceGetName(&name[0], name.size(), dev.device_id));
         name.resize(strlen(name.c_str()));
         *rv = std::move(name);
         return;
       }
       case kMaxClockRate: {
-        SDAA_CALL(sdaaDeviceGetAttribute(&value, cudaDevAttrClockRate, dev.device_id));
+        // SDAA_CALL(sdaaDeviceGetAttribute(&value, cudaDevAttrClockRate, dev.device_id));
         break;
       }
       case kMultiProcessorCount: {
-        SDAA_CALL(sdaaDeviceGetAttribute(&value, cudaDevAttrMultiProcessorCount, dev.device_id));
+        // SDAA_CALL(sdaaDeviceGetAttribute(&value, cudaDevAttrMultiProcessorCount, dev.device_id));
         break;
       }
       case kMaxThreadDimensions: {
         int dims[3];
-        SDAA_CALL(sdaaDeviceGetAttribute(&dims[0], cudaDevAttrMaxBlockDimX, dev.device_id));
-        SDAA_CALL(sdaaDeviceGetAttribute(&dims[1], cudaDevAttrMaxBlockDimY, dev.device_id));
-        SDAA_CALL(sdaaDeviceGetAttribute(&dims[2], cudaDevAttrMaxBlockDimZ, dev.device_id));
+        // SDAA_CALL(sdaaDeviceGetAttribute(&dims[0], cudaDevAttrMaxBlockDimX, dev.device_id));
+        // SDAA_CALL(sdaaDeviceGetAttribute(&dims[1], cudaDevAttrMaxBlockDimY, dev.device_id));
+        // SDAA_CALL(sdaaDeviceGetAttribute(&dims[2], cudaDevAttrMaxBlockDimZ, dev.device_id));
 
         std::stringstream ss;  // use json string to return multiple int values;
         ss << "[" << dims[0] << ", " << dims[1] << ", " << dims[2] << "]";
@@ -94,13 +94,13 @@ class CUDADeviceAPI final : public DeviceAPI {
         return;
       }
       case kMaxRegistersPerBlock: {
-        SDAA_CALL(sdaaDeviceGetAttribute(&value, cudaDevAttrMaxRegistersPerBlock, dev.device_id));
+        // SDAA_CALL(sdaaDeviceGetAttribute(&value, cudaDevAttrMaxRegistersPerBlock, dev.device_id));
         break;
       }
       case kGcnArch:
         return;
       case kApiVersion: {
-        *rv = SDAA_VERSION;
+        // *rv = SDAA_VERSION;
         return;
       }
       case kDriverVersion:
@@ -111,13 +111,13 @@ class CUDADeviceAPI final : public DeviceAPI {
   void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final {
     ICHECK_EQ(256 % alignment, 0U) << "CUDA space is aligned at 256 bytes";
     void* ret;
-    if (dev.device_type == kDLCUDAHost) {
+    if (dev.device_type == kDLSDAAHost) {
       VLOG(1) << "allocating " << nbytes << "bytes on host";
-      SDAA_CALL(cudaMallocHost(&ret, nbytes));
+      SDAA_CALL(sdaaMallocHost(&ret, nbytes));
     } else {
       SDAA_CALL(sdaaSetDevice(dev.device_id));
       size_t free_mem, total_mem;
-      SDAA_CALL(cudaMemGetInfo(&free_mem, &total_mem));
+      SDAA_CALL(sdaaMemGetInfo(&free_mem, &total_mem));
       VLOG(1) << "allocating " << nbytes << " bytes on device, with " << free_mem
               << " bytes currently free out of " << total_mem << " bytes available";
       SDAA_CALL(sdaaMalloc(&ret, nbytes));
@@ -126,7 +126,7 @@ class CUDADeviceAPI final : public DeviceAPI {
   }
 
   void FreeDataSpace(Device dev, void* ptr) final {
-    if (dev.device_type == kDLCUDAHost) {
+    if (dev.device_type == kDLSDAAHost) {
       VLOG(1) << "freeing host memory";
       SDAA_CALL(sdaaFreeHost(ptr));
     } else {
@@ -144,11 +144,11 @@ class CUDADeviceAPI final : public DeviceAPI {
     from = static_cast<const char*>(from) + from_offset;
     to = static_cast<char*>(to) + to_offset;
 
-    if (dev_from.device_type == kDLCUDAHost) {
+    if (dev_from.device_type == kDLSDAAHost) {
       dev_from.device_type = kDLCPU;
     }
 
-    if (dev_to.device_type == kDLCUDAHost) {
+    if (dev_to.device_type == kDLSDAAHost) {
       dev_to.device_type = kDLCPU;
     }
 
@@ -158,17 +158,17 @@ class CUDADeviceAPI final : public DeviceAPI {
       return;
     }
 
-    if (dev_from.device_type == kDLCUDA && dev_to.device_type == kDLCUDA) {
+    if (dev_from.device_type == kDLSDAA && dev_to.device_type == kDLSDAA) {
       SDAA_CALL(sdaaSetDevice(dev_from.device_id));
       if (dev_from.device_id == dev_to.device_id) {
         GPUCopy(from, to, size, sdaaMemcpyDeviceToDevice, cu_stream);
       } else {
-        cudaMemcpyPeerAsync(to, dev_to.device_id, from, dev_from.device_id, size, cu_stream);
+        // cudaMemcpyPeerAsync(to, dev_to.device_id, from, dev_from.device_id, size, cu_stream);
       }
-    } else if (dev_from.device_type == kDLCUDA && dev_to.device_type == kDLCPU) {
+    } else if (dev_from.device_type == kDLSDAA && dev_to.device_type == kDLCPU) {
       SDAA_CALL(sdaaSetDevice(dev_from.device_id));
       GPUCopy(from, to, size, sdaaMemcpyDeviceToHost, cu_stream);
-    } else if (dev_from.device_type == kDLCPU && dev_to.device_type == kDLCUDA) {
+    } else if (dev_from.device_type == kDLCPU && dev_to.device_type == kDLSDAA) {
       SDAA_CALL(sdaaSetDevice(dev_to.device_id));
       GPUCopy(from, to, size, sdaaMemcpyHostToDevice, cu_stream);
     } else {
@@ -187,7 +187,7 @@ class CUDADeviceAPI final : public DeviceAPI {
   void FreeStream(Device dev, TVMStreamHandle stream) {
     SDAA_CALL(sdaaSetDevice(dev.device_id));
     sdaaStream_t cu_stream = static_cast<sdaaStream_t>(stream);
-    SDAA_CALL(cudaStreamDestroy(cu_stream));
+    SDAA_CALL(sdaaStreamDestroy(cu_stream));
   }
 
   void SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStreamHandle event_dst) {
@@ -195,15 +195,15 @@ class CUDADeviceAPI final : public DeviceAPI {
     sdaaStream_t src_stream = static_cast<sdaaStream_t>(event_src);
     sdaaStream_t dst_stream = static_cast<sdaaStream_t>(event_dst);
     sdaaEvent_t evt;
-    SDAA_CALL(cudaEventCreate(&evt));
-    SDAA_CALL(cudaEventRecord(evt, src_stream));
-    SDAA_CALL(cudaStreamWaitEvent(dst_stream, evt, 0));
-    SDAA_CALL(cudaEventDestroy(evt));
+    SDAA_CALL(sdaaEventCreate(&evt));
+    SDAA_CALL(sdaaEventRecord(evt, src_stream));
+    SDAA_CALL(sdaaStreamWaitEvent(dst_stream, evt, 0));
+    SDAA_CALL(sdaaEventDestroy(evt));
   }
 
   void StreamSync(Device dev, TVMStreamHandle stream) final {
     SDAA_CALL(sdaaSetDevice(dev.device_id));
-    SDAA_CALL(cudaStreamSynchronize(static_cast<sdaaStream_t>(stream)));
+    SDAA_CALL(sdaaStreamSynchronize(static_cast<sdaaStream_t>(stream)));
   }
 
   void SetStream(Device dev, TVMStreamHandle stream) final {
@@ -238,7 +238,7 @@ class CUDADeviceAPI final : public DeviceAPI {
 
 typedef dmlc::ThreadLocalStore<SDAAThreadEntry> CUDAThreadStore;
 
-SDAAThreadEntry::SDAAThreadEntry() : pool(kDLCUDA, CUDADeviceAPI::Global()) {}
+SDAAThreadEntry::SDAAThreadEntry() : pool(kDLSDAA, CUDADeviceAPI::Global()) {}
 
 SDAAThreadEntry* SDAAThreadEntry::ThreadLocal() { return CUDAThreadStore::Get(); }
 
