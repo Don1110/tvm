@@ -67,8 +67,8 @@ def compile_sdaa(code, target_format="fatbin", options=None, path_target=None):
     #     arch = ["-gencode", f"arch=compute_{compute_version},code=sm_{compute_version}"]
 
     temp = utils.tempdir()
-    if target_format not in ["o", "so", "fatbin"]:
-        raise ValueError("target_format must be in o, so, fatbin")
+    if target_format not in ["so", "fatbin"]:
+        raise ValueError("target_format must be in so, fatbin")
     temp_code = temp.relpath("my_kernel.swcu")
     temp_target = temp.relpath("my_kernel.%s" % target_format)
 
@@ -83,7 +83,7 @@ def compile_sdaa(code, target_format="fatbin", options=None, path_target=None):
         cmd += ["-shared"]
 
     # zly: whether is it necessary?
-    cmd += ["--sdaa-device-only"]
+    # cmd += ["--sdaa-device-only"]
     # if isinstance(arch, list):
     #     cmd += arch
     # elif isinstance(arch, str):

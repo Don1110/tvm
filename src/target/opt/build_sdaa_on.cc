@@ -93,20 +93,21 @@ runtime::Module BuildSDAA(IRModule mod, Target target) {
   if (const auto* f = Registry::Get("tvm_callback_cuda_postproc")) {
     code = (*f)(code).operator std::string();
   }
-  std::string fmt = "fatbin";
-  std::string fatbin;
+  std::string fmt = "so";
+  std::string compile_result;
   
   //zly: similar to "with Target:" in Python
   const auto* f_enter = Registry::Get("target.TargetEnterScope");
   (*f_enter)(target);
 
-  const auto* f = Registry::Get("tvm_callback_sdaa_compile")
-  fatbin = (*f)(code).operator std::string();
+  const auto* f = Registry::Get("tvm_callback_sdaa_compile");
+  std::string ops = "--sdaa-device-only";
+  compile_result = (*f)(code, fmt, ops).operator std::string();
   
   const auto* f_exit = Registry::Get("target.TargetExitScope");
   (*f_exit)(target);
 
-  return SDAAModuleCreate(fatbin, fmt, ExtractFuncInfo(mod), code);
+  return SDAAModuleCreate(compile_result, fmt, ExtractFuncInfo(mod), code);
 }
 
 TVM_REGISTER_GLOBAL("target.build.sdaa").set_body_typed(BuildSDAA);

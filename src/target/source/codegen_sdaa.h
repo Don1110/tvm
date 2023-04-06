@@ -41,29 +41,26 @@ class CodeGenSDAA final : public CodeGenC {
   CodeGenSDAA();
   void Init(bool output_ssa);
   std::string Finish();
-  //zly: need to check wether data types below are supported.
-  // bool need_include_path() {
-  //   return (enable_fp16_ || enable_bf16_ || enable_int8_ || need_math_constants_h_ || need_mma_h_);
-  // }
+
   // override behavior
   void PrintFuncPrefix(std::ostream& os) final;
-  void PrintExtraAttrs(const PrimFunc& f) final;
+  // void PrintExtraAttrs(const PrimFunc& f) final;
   void VisitStmt_(const ForNode* op) final;
-  void PrintStorageSync(const CallNode* op) final;
+  // void PrintStorageSync(const CallNode* op) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
   // void PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs, PrimExpr rhs,
   //                       std::ostream& os) final;       // NOLINT(*)
   void PrintType(DataType t, std::ostream& os) final;  // NOLINT(*)
-  void PrintVecElemLoad(const std::string& vec, DataType t, int i,
-                        std::ostream& os) final;  // NOLINT(*)
-  void PrintVecElemStore(const std::string& vec, DataType t, int i, const std::string& value) final;
+  // void PrintVecElemLoad(const std::string& vec, DataType t, int i,
+  //                       std::ostream& os) final;  // NOLINT(*)
+  // void PrintVecElemStore(const std::string& vec, DataType t, int i, const std::string& value) final;
   void BindThreadIndex(const IterVar& iv) final;  // NOLINT(*)
   // void PrintVecElemLoadExpr(DataType t, int i, const std::string& value, std::ostream& os) final;
   // overload visitor
   // void VisitExpr_(const RampNode* op, std::ostream& os) final;       // NOLINT(*)
   // void VisitExpr_(const ShuffleNode* op, std::ostream& os) final;    // NOLINT(*)
-  void VisitExpr_(const SelectNode* op, std::ostream& os) final;     // NOLINT(*)
-  void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
+  // void VisitExpr_(const SelectNode* op, std::ostream& os) final;     // NOLINT(*)
+  // void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
   // void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;
   // void VisitExpr_(const CallNode* op, std::ostream& os) final;
   // void VisitExpr_(const CastNode* op, std::ostream& os) final;
