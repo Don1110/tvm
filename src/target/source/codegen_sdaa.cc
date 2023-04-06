@@ -717,52 +717,52 @@ void CodeGenSDAA::VisitStmt_(const AttrStmtNode* op) {
   CodeGenC::VisitStmt_(op);
 }
 
-void CodeGenSDAA::VisitStmt_(const AllocateNode* op) {
-  ICHECK(!is_zero(op->condition));
-  std::string vid = AllocVarID(op->buffer_var.get());
+// void CodeGenSDAA::VisitStmt_(const AllocateNode* op) {
+//   ICHECK(!is_zero(op->condition));
+//   std::string vid = AllocVarID(op->buffer_var.get());
 
-  this->PrintIndent();
-  std::string scope = GetPtrStorageScope(op->buffer_var);
-  const VarNode* buffer = op->buffer_var.as<VarNode>();
-  if (scope.find("wmma.") == 0) {
-    if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
-      ICHECK(op->dtype == DataType::Float(16) || op->dtype == DataType::Int(8) ||
-             op->dtype == DataType::UInt(8) || op->dtype == DataType::Int(4) ||
-             op->dtype == DataType::UInt(4) || op->dtype == DataType::Int(1) ||
-             op->dtype == DataType::BFloat(16))
-          << "Matrix_a and matrix_b only support half or char or unsigned char "
-          << "or uint4 or int4 or int1 type for now";
-    } else {
-      ICHECK(op->dtype == DataType::Float(16) || op->dtype == DataType::Float(32) ||
-             op->dtype == DataType::Int(32))
-          << "Accumulator only support half, float and int type for now";
-    }
-    PrintWmmaScope(scope, op->dtype, buffer, stream);
-  } else {
-    PrintStorageScope(scope, stream);
-    PrintType(op->dtype, stream);
-  }
+//   this->PrintIndent();
+//   std::string scope = GetPtrStorageScope(op->buffer_var);
+//   const VarNode* buffer = op->buffer_var.as<VarNode>();
+//   if (scope.find("wmma.") == 0) {
+//     if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
+//       ICHECK(op->dtype == DataType::Float(16) || op->dtype == DataType::Int(8) ||
+//              op->dtype == DataType::UInt(8) || op->dtype == DataType::Int(4) ||
+//              op->dtype == DataType::UInt(4) || op->dtype == DataType::Int(1) ||
+//              op->dtype == DataType::BFloat(16))
+//           << "Matrix_a and matrix_b only support half or char or unsigned char "
+//           << "or uint4 or int4 or int1 type for now";
+//     } else {
+//       ICHECK(op->dtype == DataType::Float(16) || op->dtype == DataType::Float(32) ||
+//              op->dtype == DataType::Int(32))
+//           << "Accumulator only support half, float and int type for now";
+//     }
+//     PrintWmmaScope(scope, op->dtype, buffer, stream);
+//   } else {
+//     PrintStorageScope(scope, stream);
+//     PrintType(op->dtype, stream);
+//   }
 
-  if (scope == "shared.dyn") {
-    stream << ' ' << vid << "[];\n";
-  } else {
-    size_t constant_size = op->ConstantAllocationSize();
-    ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
+//   if (scope == "shared.dyn") {
+//     stream << ' ' << vid << "[];\n";
+//   } else {
+//     size_t constant_size = op->ConstantAllocationSize();
+//     ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
 
-    if (scope.find("wmma.") == 0) {
-      constant_size = GetWmmaFragmentSize(scope, buffer, constant_size);
-    }
-    if ((op->dtype == DataType::Int(4) || op->dtype == DataType::UInt(4) ||
-         op->dtype == DataType::Int(1)) &&
-        scope == "shared") {
-      constant_size = constant_size / (32 / op->dtype.bits());
-    }
-    stream << ' ' << vid << '[' << constant_size << "];\n";
-  }
+//     if (scope.find("wmma.") == 0) {
+//       constant_size = GetWmmaFragmentSize(scope, buffer, constant_size);
+//     }
+//     if ((op->dtype == DataType::Int(4) || op->dtype == DataType::UInt(4) ||
+//          op->dtype == DataType::Int(1)) &&
+//         scope == "shared") {
+//       constant_size = constant_size / (32 / op->dtype.bits());
+//     }
+//     stream << ' ' << vid << '[' << constant_size << "];\n";
+//   }
 
-  RegisterHandleType(op->buffer_var.get(), op->dtype);
-  this->PrintStmt(op->body);
-}
+//   RegisterHandleType(op->buffer_var.get(), op->dtype);
+//   this->PrintStmt(op->body);
+// }
 
 // void CodeGenSDAA::VisitStmt_(const EvaluateNode* op) {
 //   if (is_const_int(op->value)) return;
