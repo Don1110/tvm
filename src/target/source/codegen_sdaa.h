@@ -42,43 +42,43 @@ class CodeGenSDAA final : public CodeGenC {
   void Init(bool output_ssa);
   std::string Finish();
   //zly: need to check wether data types below are supported.
-  bool need_include_path() {
-    return (enable_fp16_ || enable_bf16_ || enable_int8_ || need_math_constants_h_ || need_mma_h_);
-  }
+  // bool need_include_path() {
+  //   return (enable_fp16_ || enable_bf16_ || enable_int8_ || need_math_constants_h_ || need_mma_h_);
+  // }
   // override behavior
   void PrintFuncPrefix(std::ostream& os) final;
   void PrintExtraAttrs(const PrimFunc& f) final;
   void VisitStmt_(const ForNode* op) final;
   void PrintStorageSync(const CallNode* op) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
-  void PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs, PrimExpr rhs,
-                        std::ostream& os) final;       // NOLINT(*)
+  // void PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs, PrimExpr rhs,
+  //                       std::ostream& os) final;       // NOLINT(*)
   void PrintType(DataType t, std::ostream& os) final;  // NOLINT(*)
   void PrintVecElemLoad(const std::string& vec, DataType t, int i,
                         std::ostream& os) final;  // NOLINT(*)
   void PrintVecElemStore(const std::string& vec, DataType t, int i, const std::string& value) final;
   void BindThreadIndex(const IterVar& iv) final;  // NOLINT(*)
-  void PrintVecElemLoadExpr(DataType t, int i, const std::string& value, std::ostream& os) final;
+  // void PrintVecElemLoadExpr(DataType t, int i, const std::string& value, std::ostream& os) final;
   // overload visitor
-  void VisitExpr_(const RampNode* op, std::ostream& os) final;       // NOLINT(*)
-  void VisitExpr_(const ShuffleNode* op, std::ostream& os) final;    // NOLINT(*)
+  // void VisitExpr_(const RampNode* op, std::ostream& os) final;       // NOLINT(*)
+  // void VisitExpr_(const ShuffleNode* op, std::ostream& os) final;    // NOLINT(*)
   void VisitExpr_(const SelectNode* op, std::ostream& os) final;     // NOLINT(*)
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
-  void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;
-  void VisitExpr_(const CallNode* op, std::ostream& os) final;
-  void VisitExpr_(const CastNode* op, std::ostream& os) final;
-  void VisitStmt_(const EvaluateNode* op) final;
-  void VisitStmt_(const AllocateNode* op) final;
+  // void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;
+  // void VisitExpr_(const CallNode* op, std::ostream& os) final;
+  // void VisitExpr_(const CastNode* op, std::ostream& os) final;
+  // void VisitStmt_(const EvaluateNode* op) final;
+  // void VisitStmt_(const AllocateNode* op) final;
   void VisitStmt_(const AttrStmtNode* op) final;
 
  protected:
-  void PrintCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
-                       bool skip_first_arg, std::ostream& os) final;  // NOLINT(*)
+  // void PrintCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
+  //                      bool skip_first_arg, std::ostream& os) final;  // NOLINT(*)
 
  private:
   // Handle volatile loads
-  void HandleVolatileLoads(const std::string& value, const BufferLoadNode* op,
-                           std::ostream& os) final;
+  // void HandleVolatileLoads(const std::string& value, const BufferLoadNode* op,
+  //                          std::ostream& os) final;
 
   // Whether scope such as "__shared__" or "__constant__"  is part of type.
   bool IsScopePartOfType() const final { return false; }
@@ -89,31 +89,31 @@ class CodeGenSDAA final : public CodeGenC {
   std::string vid_global_barrier_state_;
   // Global barrier expected node.
   std::string vid_global_barrier_expect_;
-  // whether enable fp16
-  bool enable_fp16_{false};
-  // whether enable bf16
-  bool enable_bf16_{false};
-  // whether enable int8
-  bool enable_int8_{false};
-  // whether enable warp shuffle intrinsics
-  bool enable_warp_shuffle_{false};
-  // whether need math_constants.h
-  bool need_math_constants_h_{false};
-  // whether need mma.h
-  bool need_mma_h_{false};
-  // Op attribute map
   // zly: currently don't need
+  // // whether enable fp16
+  // bool enable_fp16_{false};
+  // // whether enable bf16
+  // bool enable_bf16_{false};
+  // // whether enable int8
+  // bool enable_int8_{false};
+  // // whether enable warp shuffle intrinsics
+  // bool enable_warp_shuffle_{false};
+  // // whether need math_constants.h
+  // bool need_math_constants_h_{false};
+  // // whether need mma.h
+  // bool need_simd_h_{false};
+  // Op attribute map
   //OpAttrMap<bool> op_need_warp_shuffle_ = Op::GetAttrMap<bool>("cuda.need_warp_shuffle");
 
   std::unordered_map<const VarNode*, std::string> fragment_shapes;
   std::unordered_map<const VarNode*, std::string> fragment_layouts;
-  friend void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p);
-  void PrintWmmaScope(const std::string& scope, DataType t, const VarNode* variable,
-                      std::ostream& os);
-  int32_t GetWmmaFragmentSize(const std::string& scope, const VarNode* variable, int32_t size);
+  // friend void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p);
+  // void PrintWmmaScope(const std::string& scope, DataType t, const VarNode* variable,
+  //                     std::ostream& os);
+  // int32_t GetWmmaFragmentSize(const std::string& scope, const VarNode* variable, int32_t size);
 };
 
 }  // namespace codegen
 }  // namespace tvm
 
-#endif  // TVM_TARGET_SOURCE_CODEGEN_CUDA_H_
+#endif  // TVM_TARGET_SOURCE_CODEGEN_SDAA_H_
