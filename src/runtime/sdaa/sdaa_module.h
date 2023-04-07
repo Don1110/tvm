@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file cuda_module.h
- * \brief Execution handling of CUDA kernels
+ * \file sdaa_module.h
+ * \brief Execution handling of SDAA kernels
  */
-#ifndef TVM_RUNTIME_CUDA_CUDA_MODULE_H_
-#define TVM_RUNTIME_CUDA_CUDA_MODULE_H_
+#ifndef TVM_RUNTIME_SDAA_SDAA_MODULE_H_
+#define TVM_RUNTIME_SDAA_SDAA_MODULE_H_
 
 #include <tvm/runtime/module.h>
 
@@ -36,20 +36,20 @@
 namespace tvm {
 namespace runtime {
 
-/*! \brief Maximum number of GPU supported in CUDAModule */
-static constexpr const int kMaxNumGPUs = 32;
+/*! \brief Maximum number of SWAI supported in SDAAModule */
+static constexpr const int kMaxNumSWAIs = 32;
 
 /*!
- * \brief create a cuda module from data.
+ * \brief create a sdaa module from data.
  *
- * \param data The module data, can be ptx, cubin
- * \param fmt The format of the data, can be "ptx", "cubin"
+ * \param data The module data, can be so
+ * \param fmt The format of the data, can be "so"
  * \param fmap The map function information map of each function.
- * \param cuda_source Optional, cuda source file
+ * \param sdaa_source Optional, sdaa source file
  */
 Module SDAAModuleCreate(std::string data, std::string fmt,
                         std::unordered_map<std::string, FunctionInfo> fmap,
-                        std::string cuda_source);
+                        std::string sdaa_source);
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_CUDA_CUDA_MODULE_H_
+#endif  // TVM_RUNTIME_SDAA_SDAA_MODULE_H_

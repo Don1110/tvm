@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file cuda_device_api.cc
+ * \file sdaa_device_api.cc
  * \brief GPU specific API
  */
 // #include <sdaa.h>
@@ -35,81 +35,67 @@
 namespace tvm {
 namespace runtime {
 
-class CUDADeviceAPI final : public DeviceAPI {    
+class SDAADeviceAPI final : public DeviceAPI {    
  public:
   void SetDevice(Device dev) final { SDAA_CALL(sdaaSetDevice(dev.device_id)); }
   void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final {
     int value = 0;
     switch (kind) {
       case kExist:
-        // value = (sdaaDeviceGetAttribute(&value, cudaDevAttrMaxThreadsPerBlock, dev.device_id) ==
-        //          sdaaSuccess);
+        value = (sdaaDeviceGetAttribute(&value, sdaaDevAttrChipset, dev.device_id) ==
+                 sdaaSuccess);
         break;
       case kMaxThreadsPerBlock: {
-        // SDAA_CALL(sdaaDeviceGetAttribute(&value, cudaDevAttrMaxThreadsPerBlock, dev.device_id));
-        // break;
+        return;
       }
       case kWarpSize: {
-        // SDAA_CALL(sdaaDeviceGetAttribute(&value, cudaDevAttrWarpSize, dev.device_id));
-        // break;
+        return;
       }
       case kMaxSharedMemoryPerBlock: {
-        // SDAA_CALL(
-        //     sdaaDeviceGetAttribute(&value, cudaDevAttrMaxSharedMemoryPerBlock, dev.device_id));
-        break;
+        return;
       }
       case kComputeVersion: {
-        std::ostringstream os;
-        // SDAA_CALL(sdaaDeviceGetAttribute(&value, cudaDevAttrComputeCapabilityMajor, dev.device_id));
-        os << value << ".";
-        // SDAA_CALL(sdaaDeviceGetAttribute(&value, cudaDevAttrComputeCapabilityMinor, dev.device_id));
-        os << value;
-        *rv = os.str();
         return;
       }
       case kDeviceName: {
-        std::string name(256, 0);
-        // SDAA_DRIVER_CALL(sdDeviceGetName(&name[0], name.size(), dev.device_id));
-        name.resize(strlen(name.c_str()));
-        *rv = std::move(name);
+        std::ostringstream os;
+        os << "SWAI";     
+        *rv = os.str();
         return;
       }
       case kMaxClockRate: {
-        // SDAA_CALL(sdaaDeviceGetAttribute(&value, cudaDevAttrClockRate, dev.device_id));
+        sdaaDeviceProp_t props = {0};
+        SDAA_CALL(sdaaDeviceGet(&props, dev.device_id));
+        value = props.clockRate;
         break;
       }
       case kMultiProcessorCount: {
-        // SDAA_CALL(sdaaDeviceGetAttribute(&value, cudaDevAttrMultiProcessorCount, dev.device_id));
+        value = 4;
         break;
       }
       case kMaxThreadDimensions: {
-        int dims[3];
-        // SDAA_CALL(sdaaDeviceGetAttribute(&dims[0], cudaDevAttrMaxBlockDimX, dev.device_id));
-        // SDAA_CALL(sdaaDeviceGetAttribute(&dims[1], cudaDevAttrMaxBlockDimY, dev.device_id));
-        // SDAA_CALL(sdaaDeviceGetAttribute(&dims[2], cudaDevAttrMaxBlockDimZ, dev.device_id));
-
         std::stringstream ss;  // use json string to return multiple int values;
-        ss << "[" << dims[0] << ", " << dims[1] << ", " << dims[2] << "]";
+        ss << "[" << "32" << "]";
         *rv = ss.str();
         return;
       }
       case kMaxRegistersPerBlock: {
-        // SDAA_CALL(sdaaDeviceGetAttribute(&value, cudaDevAttrMaxRegistersPerBlock, dev.device_id));
-        break;
+        return;
       }
       case kGcnArch:
         return;
       case kApiVersion: {
-        // *rv = SDAA_VERSION;
-        return;
+        SDAA_CALL(sdaaRuntimeGetVersion(&value));
+        break;
       }
       case kDriverVersion:
-        return;
+        SDAA_CALL(sdaaDriverGetVersion(&value));
+        break;
     }
     *rv = value;
   }
   void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final {
-    ICHECK_EQ(256 % alignment, 0U) << "CUDA space is aligned at 256 bytes";
+    ICHECK_EQ(256 % alignment, 0U) << "SDAA space is aligned at 256 bytes";
     void* ret;
     if (dev.device_type == kDLSDAAHost) {
       VLOG(1) << "allocating " << nbytes << "bytes on host";
@@ -161,18 +147,18 @@ class CUDADeviceAPI final : public DeviceAPI {
     if (dev_from.device_type == kDLSDAA && dev_to.device_type == kDLSDAA) {
       SDAA_CALL(sdaaSetDevice(dev_from.device_id));
       if (dev_from.device_id == dev_to.device_id) {
-        GPUCopy(from, to, size, sdaaMemcpyDeviceToDevice, cu_stream);
+        SWAICopy(from, to, size, sdaaMemcpyDeviceToDevice, cu_stream);
       } else {
-        // cudaMemcpyPeerAsync(to, dev_to.device_id, from, dev_from.device_id, size, cu_stream);
+        // sdaaMemcpyPeerAsync(to, dev_to.device_id, from, dev_from.device_id, size, cu_stream);
       }
     } else if (dev_from.device_type == kDLSDAA && dev_to.device_type == kDLCPU) {
       SDAA_CALL(sdaaSetDevice(dev_from.device_id));
-      GPUCopy(from, to, size, sdaaMemcpyDeviceToHost, cu_stream);
+      SWAICopy(from, to, size, sdaaMemcpyDeviceToHost, cu_stream);
     } else if (dev_from.device_type == kDLCPU && dev_to.device_type == kDLSDAA) {
       SDAA_CALL(sdaaSetDevice(dev_to.device_id));
-      GPUCopy(from, to, size, sdaaMemcpyHostToDevice, cu_stream);
+      SWAICopy(from, to, size, sdaaMemcpyHostToDevice, cu_stream);
     } else {
-      LOG(FATAL) << "expect copy from/to GPU or between GPU";
+      LOG(FATAL) << "expect copy from/to SWAI or between SWAI";
     }
   }
 
@@ -186,8 +172,8 @@ class CUDADeviceAPI final : public DeviceAPI {
 
   void FreeStream(Device dev, TVMStreamHandle stream) {
     SDAA_CALL(sdaaSetDevice(dev.device_id));
-    sdaaStream_t cu_stream = static_cast<sdaaStream_t>(stream);
-    SDAA_CALL(sdaaStreamDestroy(cu_stream));
+    sdaaStream_t sw_stream = static_cast<sdaaStream_t>(stream);
+    SDAA_CALL(sdaaStreamDestroy(sw_stream));
   }
 
   void SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStreamHandle event_dst) {
@@ -218,15 +204,15 @@ class CUDADeviceAPI final : public DeviceAPI {
     SDAAThreadEntry::ThreadLocal()->pool.FreeWorkspace(dev, data);
   }
 
-  static CUDADeviceAPI* Global() {
+  static SDAADeviceAPI* Global() {
     // NOTE: explicitly use new to avoid exit-time destruction of global state
     // Global state will be recycled by OS as the process exits.
-    static auto* inst = new CUDADeviceAPI();
+    static auto* inst = new SDAADeviceAPI();
     return inst;
   }
 
  private:
-  static void GPUCopy(const void* from, void* to, size_t size, sdaaMemcpyKind kind,
+  static void SWAICopy(const void* from, void* to, size_t size, sdaaMemcpyKind kind,
                       sdaaStream_t stream) {
     if (stream != nullptr) {
       SDAA_CALL(sdaaMemcpyAsync(to, from, size, kind, stream));
@@ -236,27 +222,27 @@ class CUDADeviceAPI final : public DeviceAPI {
   }
 };
 
-typedef dmlc::ThreadLocalStore<SDAAThreadEntry> CUDAThreadStore;
+typedef dmlc::ThreadLocalStore<SDAAThreadEntry> SDAAThreadStore;
 
-SDAAThreadEntry::SDAAThreadEntry() : pool(kDLSDAA, CUDADeviceAPI::Global()) {}
+SDAAThreadEntry::SDAAThreadEntry() : pool(kDLSDAA, SDAADeviceAPI::Global()) {}
 
-SDAAThreadEntry* SDAAThreadEntry::ThreadLocal() { return CUDAThreadStore::Get(); }
+SDAAThreadEntry* SDAAThreadEntry::ThreadLocal() { return SDAAThreadStore::Get(); }
 
-TVM_REGISTER_GLOBAL("device_api.cuda").set_body([](TVMArgs args, TVMRetValue* rv) {
-  DeviceAPI* ptr = CUDADeviceAPI::Global();
+TVM_REGISTER_GLOBAL("device_api.sdaa").set_body([](TVMArgs args, TVMRetValue* rv) {
+  DeviceAPI* ptr = SDAADeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
 });
 
-TVM_REGISTER_GLOBAL("device_api.cuda_host").set_body([](TVMArgs args, TVMRetValue* rv) {
-  DeviceAPI* ptr = CUDADeviceAPI::Global();
+TVM_REGISTER_GLOBAL("device_api.sdaa_host").set_body([](TVMArgs args, TVMRetValue* rv) {
+  DeviceAPI* ptr = SDAADeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
 });
 
-class CUDATimerNode : public TimerNode {
+class SDAATimerNode : public TimerNode {
  public:
   virtual void Start() {
-    // This initial cudaEventRecord is sometimes pretty slow (~100us). Does
-    // cudaEventRecord do some stream synchronization?
+    // This initial sdaaEventRecord is sometimes pretty slow (~100us). Does
+    // sdaaEventRecord do some stream synchronization?
     SDAA_CALL(sdaaEventRecord(start_, SDAAThreadEntry::ThreadLocal()->stream));
   }
   virtual void Stop() { SDAA_CALL(sdaaEventRecord(stop_, SDAAThreadEntry::ThreadLocal()->stream)); }
@@ -266,39 +252,39 @@ class CUDATimerNode : public TimerNode {
     SDAA_CALL(sdaaEventElapsedTime(&milliseconds, start_, stop_));
     return milliseconds * 1e6;
   }
-  virtual ~CUDATimerNode() {
+  virtual ~SDAATimerNode() {
     SDAA_CALL(sdaaEventDestroy(start_));
     SDAA_CALL(sdaaEventDestroy(stop_));
   }
-  CUDATimerNode() {
+  SDAATimerNode() {
     SDAA_CALL(sdaaEventCreate(&start_));
     SDAA_CALL(sdaaEventCreate(&stop_));
   }
 
-  static constexpr const char* _type_key = "CUDATimerNode";
-  TVM_DECLARE_FINAL_OBJECT_INFO(CUDATimerNode, TimerNode);
+  static constexpr const char* _type_key = "SDAATimerNode";
+  TVM_DECLARE_FINAL_OBJECT_INFO(SDAATimerNode, TimerNode);
 
  private:
   sdaaEvent_t start_;
   sdaaEvent_t stop_;
 };
 
-TVM_REGISTER_OBJECT_TYPE(CUDATimerNode);
+TVM_REGISTER_OBJECT_TYPE(SDAATimerNode);
 
-TVM_REGISTER_GLOBAL("profiling.timer.cuda").set_body_typed([](Device dev) {
-  return Timer(make_object<CUDATimerNode>());
+TVM_REGISTER_GLOBAL("profiling.timer.sdaa").set_body_typed([](Device dev) {
+  return Timer(make_object<SDAATimerNode>());
 });
 
-TVM_DLL String GetCudaFreeMemory() {
+TVM_DLL String GetSdaaFreeMemory() {
   size_t free_mem, total_mem;
   SDAA_CALL(sdaaMemGetInfo(&free_mem, &total_mem));
   std::stringstream ss;
-  ss << "Current CUDA memory is " << free_mem << " bytes free out of " << total_mem
+  ss << "Current SDAA memory is " << free_mem << " bytes free out of " << total_mem
      << " bytes on device";
   return ss.str();
 }
 
-TVM_REGISTER_GLOBAL("runtime.GetCudaFreeMemory").set_body_typed(GetCudaFreeMemory);
+TVM_REGISTER_GLOBAL("runtime.GetSdaaFreeMemory").set_body_typed(GetSdaaFreeMemory);
 
 }  // namespace runtime
 }  // namespace tvm

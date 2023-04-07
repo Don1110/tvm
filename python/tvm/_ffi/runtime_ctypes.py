@@ -218,6 +218,8 @@ class Device(ctypes.Structure):
     kOpenGL = 34
     kDLMicroDev = 35
     kDLSDAA = 36
+    kDLSDAAHost = 37
+
 
     _fields_ = [("device_type", ctypes.c_int), ("device_id", ctypes.c_int)]
     MASK2STR = {
@@ -240,6 +242,7 @@ class Device(ctypes.Structure):
         kOpenGL: "opengl",
         kDLMicroDev: "microdev",
         kDLSDAA: "sdaa",
+        kDLSDAAHost: "sdaa_host"
     }
 
     STR2MASK = {

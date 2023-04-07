@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file cuda_common.h
- * \brief Common utilities for CUDA
+ * \file sdaa_common.h
+ * \brief Common utilities for SDAA
  */
-#ifndef TVM_RUNTIME_CUDA_CUDA_COMMON_H_
-#define TVM_RUNTIME_CUDA_CUDA_COMMON_H_
+#ifndef TVM_RUNTIME_SDAA_SDAA_COMMON_H_
+#define TVM_RUNTIME_SDAA_SDAA_COMMON_H_
 
 // #include <sdaa.h>
 #include <tvm/runtime/packed_func.h>
@@ -34,19 +34,19 @@
 namespace tvm {
 namespace runtime {
 
-#define SDAA_DRIVER_CALL(x)                                             \
-  {                                                                     \
-    sdaaError_t result = x;                                                \
-    if (result != SDAA_SUCCESS && result != SDAA_ERROR_DEINITIALIZED) { \
-      const char* msg = sdaaGetErrorName(result);                                     \
-      LOG(FATAL) << "SDAAError: " #x " failed with error: " << msg;     \
-    }                                                                   \
-  }
+// #define SDAA_DRIVER_CALL(x)                                             \
+//   {                                                                     \
+//     sdaaError_t result = x;                                                \
+//     if (result != SDAA_SUCCESS && result != SDAA_ERROR_DEINITIALIZED) { \
+//       const char* msg = sdaaGetErrorName(result);                                     \
+//       LOG(FATAL) << "SDAAError: " #x " failed with error: " << msg;     \
+//     }                                                                   \
+//   }
 
 #define SDAA_CALL(func)                                       \
   {                                                           \
     sdaaError_t e = (func);                                   \
-    ICHECK(e == sdaaSuccess || e == sdaaErrorsdaartUnloading) \
+    ICHECK(e == sdaaSuccess) \
         << "SDAA: " << sdaaGetErrorString(e);                 \
   }
 
@@ -64,4 +64,4 @@ class SDAAThreadEntry {
 };
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_CUDA_CUDA_COMMON_H_
+#endif  // TVM_RUNTIME_SDAA_SDAA_COMMON_H_

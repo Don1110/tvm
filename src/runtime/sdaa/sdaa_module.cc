@@ -18,9 +18,9 @@
  */
 
 /*!
- * \file cuda_module.cc
+ * \file sdaa_module.cc
  */
-// #include "cuda_module.h"
+// #include "sdaa_module.h"
 
 // #include <sdaa.h>
 #include <sdaa_runtime.h>
@@ -40,20 +40,20 @@
 #include "sdaa_module.h"
 
 #define SDAA_SUCCESS 0
-#define SDAA_ERROR_DEINITIALIZED 4
+// #define SDAA_ERROR_DEINITIALIZED 4
 namespace tvm {
 namespace runtime {
 
-// Module to support thread-safe multi-GPU execution.
-// SDmodule is a per-GPU module
+// Module to support thread-safe multi-SWAI execution.
+// SDmodule is a per-SWAI module
 // The runtime will contain a per-device module table
-// The modules will be lazily loaded
+// The modules will be lazily loaded ???
 class SDAAModuleNode : public runtime::ModuleNode {
  public:
   explicit SDAAModuleNode(std::string data, std::string fmt,
                           std::unordered_map<std::string, FunctionInfo> fmap,
-                          std::string cuda_source)
-      : data_(data), fmt_(fmt), fmap_(fmap), cuda_source_(cuda_source) {
+                          std::string sdaa_source)
+      : data_(data), fmt_(fmt), fmap_(fmap), sdaa_source_(sdaa_source) {
     std::fill(module_.begin(), module_.end(), nullptr);
   }
   // destructor
@@ -61,22 +61,22 @@ class SDAAModuleNode : public runtime::ModuleNode {
     for (size_t i = 0; i < module_.size(); ++i) {
       if (module_[i] != nullptr) {
         SDAA_CALL(sdaaSetDevice(static_cast<int>(i)));
-        SDAA_DRIVER_CALL(sdaaModuleUnload(module_[i]));
+        SDAA_CALL(sdaaModuleUnload(module_[i]));
       }
     }
   }
 
-  const char* type_key() const final { return "cuda"; }
+  const char* type_key() const final { return "sdaa"; }
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
 
   void SaveToFile(const std::string& file_name, const std::string& format) final {
     std::string fmt = GetFileFormat(file_name, format);
     std::string meta_file = GetMetaFilePath(file_name);
-    if (fmt == "cu") {
-      ICHECK_NE(cuda_source_.length(), 0);
+    if (fmt == "swcu") {
+      ICHECK_NE(sdaa_source_.length(), 0);
       SaveMetaDataToFile(meta_file, fmap_);
-      SaveBinaryToFile(file_name, cuda_source_);
+      SaveBinaryToFile(file_name, sdaa_source_);
     } else {
       ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
       SaveMetaDataToFile(meta_file, fmap_);
@@ -92,48 +92,50 @@ class SDAAModuleNode : public runtime::ModuleNode {
 
   std::string GetSource(const std::string& format) final {
     if (format == fmt_) return data_;
-    if (cuda_source_.length() != 0) {
-      return cuda_source_;
+    if (sdaa_source_.length() != 0) {
+      return sdaa_source_;
     } else {
-      if (fmt_ == "ptx") return data_;
+      if (fmt_ == "so") return data_;
       return "";
     }
   }
 
-  
-// add
-
+  // zly: sdaa doesn't have something like primary context.
   // get a sdaaFunction_t from primary context in device_id
   sdaaFunction_t GetFunc(int device_id, const std::string& func_name) {
     std::lock_guard<std::mutex> lock(mutex_);
     // must recheck under the lock scope
+    // zly: this may be the way of lazy loading, i.e., only when the function is called, 
+    // the module is loaded.
     if (module_[device_id] == nullptr) {
-      SDAA_DRIVER_CALL(sdaaModuleLoad(&(module_[device_id]), data_.c_str()));
+      SDAA_CALL(sdaaModuleLoad(&(module_[device_id]), data_.c_str()));
     }
     sdaaFunction_t func;
     sdaaError_t result = sdaaModuleGetFunction(&func, module_[device_id], func_name.c_str());
     if (result != SDAA_SUCCESS) {
       const char* msg = sdaaGetErrorName(result);
-      LOG(FATAL) << "CUDAError: SDmoduleGetFunction " << func_name << " failed with error: " << msg;
+      LOG(FATAL) << "SDAAError: sdaaModuleGetFunction " << func_name << " failed with error: " << msg;
     }
     return func;
   }
+  
   // get a global var from primary context in device_id
-  // SDdeviceptr GetGlobal(int device_id, const std::string& global_name, size_t expect_nbytes) {
+  // sdaaPointerAttributes GetGlobal(int device_id, const std::string& global_name, size_t expect_nbytes) {
   //   std::lock_guard<std::mutex> lock(mutex_);
   //   // must recheck under the lock scope
   //   if (module_[device_id] == nullptr) {
-  //     SDAA_DRIVER_CALL(SDmoduleLoadData(&(module_[device_id]), data_.c_str()));
+  //     SDAA_CALL(sdaaModuleLoad(&(module_[device_id]), data_.c_str()));
   //   }
-  //   SDdeviceptr global;
+  //   sdaaPointerAttributes global;
   //   size_t nbytes;
 
-  //   sdaaModule_t result = SDmoduleGetGlobal(&global, &nbytes, module_[device_id], global_name.c_str());
+  //   // zly: only support to check the information of a pointer instead of a global name.
+  //   sdaaModule_t result = sdaaPointerGetAttributes(&global, &nbytes, module_[device_id], global_name.c_str());
   //   ICHECK_EQ(nbytes, expect_nbytes);
   //   if (result != SDAA_SUCCESS) {
   //     const char* msg;
   //     cuGetErrorName(result, &msg);
-  //     LOG(FATAL) << "CUDAError: SDmoduleGetGlobal " << global_name << " failed with error: " << msg;
+  //     LOG(FATAL) << "SDAAError: SDmoduleGetGlobal " << global_name << " failed with error: " << msg;
   //   }
   //   return global;
   // }
@@ -145,18 +147,18 @@ class SDAAModuleNode : public runtime::ModuleNode {
   std::string fmt_;
   // function information table.
   std::unordered_map<std::string, FunctionInfo> fmap_;
-  // The cuda source.
-  std::string cuda_source_;
-  // the internal modules per GPU, to be lazily initialized.
-  std::array<sdaaModule_t, kMaxNumGPUs> module_;
+  // The sdaa source.
+  std::string sdaa_source_;
+  // the internal modules per SWAI, to be lazily initialized.
+  std::array<sdaaModule_t, kMaxNumSWAIs> module_;
   // internal mutex when updating the module
   std::mutex mutex_;
 };
 
 // a wrapped function class to get packed func.
-class CUDAWrappedFunc {
+class SDAAWrappedFunc {
  public:
-  // initialize the CUDA function.
+  // initialize the SDAA function.
   void Init(SDAAModuleNode* m, ObjectPtr<Object> sptr, const std::string& func_name,
             size_t num_void_args, const std::vector<std::string>& launch_param_tags) {
     m_ = m;
@@ -171,35 +173,32 @@ class CUDAWrappedFunc {
     SDAA_CALL(sdaaGetDevice(&device_id));
     ThreadWorkLoad wl = launch_param_config_.Extract(args);
 
-    // if (fcache_[device_id] == nullptr) {
-    //   fcache_[device_id] = m_->GetFunc(device_id, func_name_);
-    //   if (wl.dyn_shmem_size >= (48 << 10)) {
-    //     // Assumption: dyn_shmem_size doesn't change across different invocations of
-    //     // fcache_[device_id]
-    //     sdaaModule_t result = cuFuncSetAttribute(
-    //         fcache_[device_id], CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES, wl.dyn_shmem_size);
-    //     if (result != SDAA_SUCCESS) {
-    //       LOG(FATAL) << "Failed to set the allowed dynamic shared memory size to "
-    //                  << wl.dyn_shmem_size;
-    //     }
-    //   }
-    // }
+    if (fcache_[device_id] == nullptr) {
+      fcache_[device_id] = m_->GetFunc(device_id, func_name_);
+      // if (wl.dyn_shmem_size >= (48 << 10)) {
+      //   // Assumption: dyn_shmem_size doesn't change across different invocations of
+      //   // fcache_[device_id]
+      //   sdaaModule_t result = cuFuncSetAttribute(
+      //       fcache_[device_id], CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES, wl.dyn_shmem_size);
+      //   if (result != SDAA_SUCCESS) {
+      //     LOG(FATAL) << "Failed to set the allowed dynamic shared memory size to "
+      //                << wl.dyn_shmem_size;
+      //   }
+      // }
+    }
     sdaaStream_t strm = static_cast<sdaaStream_t>(SDAAThreadEntry::ThreadLocal()->stream);
     //第二个参数arrayNum [in]：所需核组个数，取值目前只支持1核组
     sdaaError_t result = sdaaModuleLaunchKernel(fcache_[device_id], 1, strm, void_args);
-    if (result != SDAA_SUCCESS && result != SDAA_ERROR_DEINITIALIZED) {
+    if (result != SDAA_SUCCESS) {
       const char* msg = sdaaGetErrorName(result);
       std::ostringstream os;
-      os << "CUDALaunch Error: " << msg << "\n"
-         << " grid=(" << wl.grid_dim(0) << "," << wl.grid_dim(1) << "," << wl.grid_dim(2) << "), "
-         << " block=(" << wl.block_dim(0) << "," << wl.block_dim(1) << "," << wl.block_dim(2)
-         << ")\n";
-      std::string cuda = m_->GetSource("");
-      if (cuda.length() != 0) {
+      os << "SDAALaunch Error: " << msg << "\n";
+      std::string sdaa = m_->GetSource("");
+      if (sdaa.length() != 0) {
         os << "// func_name=" << func_name_ << "\n"
-           << "// CUDA Source\n"
+           << "// SDAA Source\n"
            << "// -----------\n"
-           << cuda;
+           << sdaa;
       }
       LOG(FATAL) << os.str();
     }
@@ -214,14 +213,14 @@ class CUDAWrappedFunc {
   std::string func_name_;
   // Device function cache per device.
   // mark as mutable, to enable lazy initialization
-  mutable std::array<sdaaFunction_t, kMaxNumGPUs> fcache_;
+  mutable std::array<sdaaFunction_t, kMaxNumSWAIs> fcache_;
   // launch parameters configuration
   LaunchParamConfig launch_param_config_;
 };
 
-// class CUDAPrepGlobalBarrier {
+// class SDAAPrepGlobalBarrier {
 //  public:
-//   CUDAPrepGlobalBarrier(SDAAModuleNode* m, ObjectPtr<Object> sptr) : m_(m), sptr_(sptr) {
+//   SDAAPrepGlobalBarrier(SDAAModuleNode* m, ObjectPtr<Object> sptr) : m_(m), sptr_(sptr) {
 //     std::fill(pcache_.begin(), pcache_.end(), 0);
 //   }
 
@@ -248,36 +247,37 @@ PackedFunc SDAAModuleNode::GetFunction(const std::string& name,
                                        const ObjectPtr<Object>& sptr_to_self) {
   ICHECK_EQ(sptr_to_self.get(), this);
   ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
-  if (name == symbol::tvm_prepare_global_barrier) {
-    // return PackedFunc(CUDAPrepGlobalBarrier(this, sptr_to_self));
-  }
+  ICHECK_NE(name, symbol::tvm_prepare_global_barrier) << "Device do not support global barrier";
+  // if (name == symbol::tvm_prepare_global_barrier) {
+  //   return PackedFunc(SDAAPrepGlobalBarrier(this, sptr_to_self));
+  // }
   auto it = fmap_.find(name);
   if (it == fmap_.end()) return PackedFunc();
   const FunctionInfo& info = it->second;
-  CUDAWrappedFunc f;
+  SDAAWrappedFunc f;
   f.Init(this, sptr_to_self, name, info.arg_types.size(), info.launch_param_tags);
   return PackFuncVoidAddr(f, info.arg_types);
 }
 
-Module CUDAModuleCreate(std::string data, std::string fmt,
+Module SDAAModuleCreate(std::string data, std::string fmt,
                         std::unordered_map<std::string, FunctionInfo> fmap,
-                        std::string cuda_source) {
-  auto n = make_object<SDAAModuleNode>(data, fmt, fmap, cuda_source);
+                        std::string sdaa_source) {
+  auto n = make_object<SDAAModuleNode>(data, fmt, fmap, sdaa_source);
   return Module(n);
 }
 
 // Load module from module.
-Module CUDAModuleLoadFile(const std::string& file_name, const std::string& format) {
+Module SDAAModuleLoadFile(const std::string& file_name, const std::string& format) {
   std::string data;
   std::unordered_map<std::string, FunctionInfo> fmap;
   std::string fmt = GetFileFormat(file_name, format);
   std::string meta_file = GetMetaFilePath(file_name);
   LoadBinaryFromFile(file_name, &data);
   LoadMetaDataFromFile(meta_file, &fmap);
-  return CUDAModuleCreate(data, fmt, fmap, std::string());
+  return SDAAModuleCreate(data, fmt, fmap, std::string());
 }
 
-Module CUDAModuleLoadBinary(void* strm) {
+Module SDAAModuleLoadBinary(void* strm) {
   dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
   std::string data;
   std::unordered_map<std::string, FunctionInfo> fmap;
@@ -285,13 +285,13 @@ Module CUDAModuleLoadBinary(void* strm) {
   stream->Read(&fmt);
   stream->Read(&fmap);
   stream->Read(&data);
-  return CUDAModuleCreate(data, fmt, fmap, std::string());
+  return SDAAModuleCreate(data, fmt, fmap, std::string());
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_cubin").set_body_typed(CUDAModuleLoadFile);
+// TVM_REGISTER_GLOBAL("runtime.module.loadfile_cubin").set_body_typed(SDAAModuleLoadFile);
 
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_ptx").set_body_typed(CUDAModuleLoadFile);
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_bin").set_body_typed(SDAAModuleLoadFile);
 
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_cuda").set_body_typed(CUDAModuleLoadBinary);
+TVM_REGISTER_GLOBAL("runtime.module.loadbinary_sdaa").set_body_typed(SDAAModuleLoadBinary);
 }  // namespace runtime
 }  // namespace tvm
