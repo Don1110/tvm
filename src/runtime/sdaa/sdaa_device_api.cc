@@ -65,7 +65,7 @@ class SDAADeviceAPI final : public DeviceAPI {
       }
       case kMaxClockRate: {
         sdaaDeviceProp_t props = {0};
-        SDAA_CALL(sdaaDeviceGet(&props, dev.device_id));
+        SDAA_CALL(sdaaGetDeviceProperties(&props, dev.device_id));
         value = props.clockRate;
         break;
       }
