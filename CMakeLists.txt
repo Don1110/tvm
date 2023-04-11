@@ -12,6 +12,8 @@ include(cmake/utils/FindLLVM.cmake)
 include(cmake/utils/FindROCM.cmake)
 include(cmake/utils/FindEthosN.cmake)
 
+include(cmake/utils/FindSDAA.cmake)
+
 if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/config.cmake)
   include(${CMAKE_CURRENT_BINARY_DIR}/config.cmake)
 else()
@@ -29,6 +31,7 @@ tvm_option(USE_OPENCL "Build with OpenCL" OFF)
 tvm_option(USE_OPENCL_GTEST "Path to OpenCL specific gtest version for runtime cpp tests." /path/to/opencl/gtest)
 tvm_option(USE_VULKAN "Build with Vulkan" OFF)
 
+tvm_option(USE_SDAA "Build with SDAA" OFF)
 
 # Whether to use spirv-tools.and SPIRV-Headers from Khronos github or gitlab.
 #
@@ -519,6 +522,8 @@ include(cmake/modules/contrib/UMA.cmake)
 include(cmake/modules/Git.cmake)
 include(cmake/modules/LibInfo.cmake)
 include(cmake/modules/RustExt.cmake)
+
+include(cmake/modules/SDAA.cmake)
 
 include(CheckCXXCompilerFlag)
 if(NOT MSVC)

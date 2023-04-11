@@ -40,7 +40,7 @@ class CodeGenSDAA final : public CodeGenC {
  public:
   // CodeGenSDAA();
   void Init(bool output_ssa);
-  std::string Finish();
+  // std::string Finish();
 
   // override behavior
   void PrintFuncPrefix(std::ostream& os) final;

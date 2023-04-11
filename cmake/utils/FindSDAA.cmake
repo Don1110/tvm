@@ -51,77 +51,20 @@ macro(find_sdaa use_sdaa)
   endif()
 
   # additional libraries
-  # if(SDAA_FOUND)
-  #   if(MSVC)
-  #     find_library(SDAA_SDAA_LIBRARY sdaa
-  #       ${SDAA_TOOLKIT_ROOT_DIR}/lib/x64
-  #       ${SDAA_TOOLKIT_ROOT_DIR}/lib/Win32)
-  #     find_library(SDAA_NVRTC_LIBRARY nvrtc
-  #       ${SDAA_TOOLKIT_ROOT_DIR}/lib/x64
-  #       ${SDAA_TOOLKIT_ROOT_DIR}/lib/Win32)
-  #     find_library(SDAA_CUBLAS_LIBRARY cublas
-  #       ${SDAA_TOOLKIT_ROOT_DIR}/lib/x64
-  #       ${SDAA_TOOLKIT_ROOT_DIR}/lib/Win32)
-  #     find_library(SDAA_CUBLASLT_LIBRARY cublaslt
-  #       ${SDAA_TOOLKIT_ROOT_DIR}/lib/x64
-  #       ${SDAA_TOOLKIT_ROOT_DIR}/lib/Win32)
-  #   else(MSVC)
-  #     find_library(_SDAA_SDAA_LIBRARY sdaa
-  #       PATHS ${SDAA_TOOLKIT_ROOT_DIR}
-  #       PATH_SUFFIXES lib lib64 targets/x86_64-linux/lib targets/x86_64-linux/lib/stubs lib64/stubs
-  #       NO_DEFAULT_PATH)
-  #     if(_SDAA_SDAA_LIBRARY)
-  #       set(SDAA_SDAA_LIBRARY ${_SDAA_SDAA_LIBRARY})
-  #     endif()
-  #     find_library(SDAA_NVRTC_LIBRARY nvrtc
-  #       PATHS ${SDAA_TOOLKIT_ROOT_DIR}
-  #       PATH_SUFFIXES lib lib64 targets/x86_64-linux/lib targets/x86_64-linux/lib/stubs lib64/stubs lib/x86_64-linux-gnu
-  #       NO_DEFAULT_PATH)
-  #     find_library(SDAA_CURAND_LIBRARY curand
-  #       ${SDAA_TOOLKIT_ROOT_DIR}/lib64
-  #       ${SDAA_TOOLKIT_ROOT_DIR}/lib
-  #       NO_DEFAULT_PATH)
-  #     find_library(SDAA_CUBLAS_LIBRARY cublas
-  #       ${SDAA_TOOLKIT_ROOT_DIR}/lib64
-  #       ${SDAA_TOOLKIT_ROOT_DIR}/lib
-  #       NO_DEFAULT_PATH)
-  #     # search default path if cannot find cublas in non-default
-  #     find_library(SDAA_CUBLAS_LIBRARY cublas)
-  #     find_library(SDAA_CUBLASLT_LIBRARY
-  #       NAMES cublaslt cublasLt
-  #       PATHS
-  #       ${SDAA_TOOLKIT_ROOT_DIR}/lib64
-  #       ${SDAA_TOOLKIT_ROOT_DIR}/lib
-  #       NO_DEFAULT_PATH)
-  #     # search default path if cannot find cublaslt in non-default
-  #     find_library(SDAA_CUBLASLT_LIBRARY NAMES cublaslt cublasLt)
-  #   endif(MSVC)
-
-    # # find cuDNN
-    # set(__use_cudnn ${use_cudnn})
-    # if(${__use_cudnn} MATCHES ${IS_TRUE_PATTERN})
-    #   set(SDAA_CUDNN_INCLUDE_DIRS ${SDAA_INCLUDE_DIRS})
-    #   if(MSVC)
-    #     find_library(SDAA_CUDNN_LIBRARY cudnn
-    #       ${SDAA_TOOLKIT_ROOT_DIR}/lib/x64
-    #       ${SDAA_TOOLKIT_ROOT_DIR}/lib/Win32)
-    #   else(MSVC)
-    #     find_library(SDAA_CUDNN_LIBRARY cudnn
-    #       ${SDAA_TOOLKIT_ROOT_DIR}/lib64
-    #       ${SDAA_TOOLKIT_ROOT_DIR}/lib
-    #       NO_DEFAULT_PATH)
-    #     # search default path if cannot find cudnn in non-default
-    #     find_library(SDAA_CUDNN_LIBRARY cudnn)
-    #   endif(MSVC)
-    # elseif(IS_DIRECTORY ${__use_cudnn})
-    #   # cuDNN doesn't necessarily live in the SDAA dir
-    #   set(SDAA_CUDNN_ROOT_DIR ${__use_cudnn})
-    #   set(SDAA_CUDNN_INCLUDE_DIRS ${SDAA_CUDNN_ROOT_DIR}/include)
-    #   find_library(SDAA_CUDNN_LIBRARY cudnn
-    #     ${SDAA_CUDNN_ROOT_DIR}/lib64
-    #     ${SDAA_CUDNN_ROOT_DIR}/lib
-    #     NO_DEFAULT_PATH)
-    # endif()
+  if(SDAA_FOUND)
+    if(MSVC)
+      find_library(SDAA_SDAA_LIBRARY sdaa
+        ${SDAA_TOOLKIT_ROOT_DIR}/lib/x64
+        ${SDAA_TOOLKIT_ROOT_DIR}/lib/Win32)
+    else(MSVC)
+      find_library(_SDAA_SDAA_LIBRARY sdaa
+        PATHS ${SDAA_TOOLKIT_ROOT_DIR}
+        PATH_SUFFIXES lib lib64 targets/x86_64-linux/lib targets/x86_64-linux/lib/stubs lib64/stubs
+        NO_DEFAULT_PATH)
+      if(_SDAA_SDAA_LIBRARY)
+        set(SDAA_SDAA_LIBRARY ${_SDAA_SDAA_LIBRARY})
+      endif()
+    endif(MSVC)
 
     message(STATUS "Found SDAA_TOOLKIT_ROOT_DIR=" ${SDAA_TOOLKIT_ROOT_DIR})
     message(STATUS "Found SDAA_SDAA_LIBRARY=" ${SDAA_SDAA_LIBRARY})
