@@ -213,12 +213,12 @@ class Device(ctypes.Structure):
     kDLOneAPI = 14
     kDLWebGPU = 15
     kDLHexagon = 16
+    kDLSDAA = 17
+    kDLSDAAHost = 18
     kDLAOCL = 32
     kDLSDAccel = 33
     kOpenGL = 34
     kDLMicroDev = 35
-    kDLSDAA = 36
-    kDLSDAAHost = 37
 
 
     _fields_ = [("device_type", ctypes.c_int), ("device_id", ctypes.c_int)]

@@ -38,7 +38,7 @@ namespace codegen {
 
 class CodeGenSDAA final : public CodeGenC {
  public:
-  CodeGenSDAA();
+  // CodeGenSDAA();
   void Init(bool output_ssa);
   std::string Finish();
 

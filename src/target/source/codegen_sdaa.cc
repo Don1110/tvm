@@ -36,9 +36,7 @@
 namespace tvm {
 namespace codegen {
 
-CodeGenSDAA::CodeGenSDAA() { 
-  //restrict_keyword_ = "__restrict__"; 
-}
+// CodeGenSDAA::CodeGenSDAA() {}
 
 // zly: currently barrier is not supported in SDAA.
 void CodeGenSDAA::Init(bool output_ssa) {
