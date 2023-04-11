@@ -111,9 +111,6 @@ typedef enum {
   // To help avoid accidental conflicts between `DLDeviceType`
   // and this enumeration, start numbering the new enumerators
   // a little higher than (currently) seems necessary.
-  kDLSDAA = 17,
-  kDLSDAAHost = 18,
-
   kDLAOCL = 32,
   kDLSDAccel,
   kOpenGL,

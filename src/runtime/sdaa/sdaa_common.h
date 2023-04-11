@@ -34,15 +34,6 @@
 namespace tvm {
 namespace runtime {
 
-// #define SDAA_DRIVER_CALL(x)                                             \
-//   {                                                                     \
-//     sdaaError_t result = x;                                                \
-//     if (result != SDAA_SUCCESS && result != SDAA_ERROR_DEINITIALIZED) { \
-//       const char* msg = sdaaGetErrorName(result);                                     \
-//       LOG(FATAL) << "SDAAError: " #x " failed with error: " << msg;     \
-//     }                                                                   \
-//   }
-
 #define SDAA_CALL(func)                                       \
   {                                                           \
     sdaaError_t e = (func);                                   \
