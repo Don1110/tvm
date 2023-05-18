@@ -29,7 +29,7 @@ from . import utils
 from .._ffi.base import py_str
 
 
-def compile_sdaa(code, target_format="fatbin", options=None, path_target=None):
+def compile_sdaa(code, target_format="so", options=None, path_target=None):
     """Compile sdaa code with TECOCC from env.
 
     Parameters
@@ -76,30 +76,18 @@ def compile_sdaa(code, target_format="fatbin", options=None, path_target=None):
         out_file.write(code)
 
     file_target = path_target if path_target else temp_target
-    cmd = ["tecocc"]
-    cmd += [temp_code, "-O2", "-fPIC"]
-
-    if target_format == "so":
-        cmd += ["-shared"]
-
-    # zly: whether is it necessary?
-    # cmd += ["--sdaa-device-only"]
-    # if isinstance(arch, list):
-    #     cmd += arch
-    # elif isinstance(arch, str):
-    #     cmd += ["-arch", arch]
-
-
-    if options:
-        if isinstance(options, str):
-            cmd += [options]
-        elif isinstance(options, list):
-            cmd += options
-        else:
-            raise ValueError("options must be str or list of str")
-
-    cmd += ["-o", file_target]
+    cmd_o = ["tecocc"]
+    inter_file = temp.relpath("my_kernel.o")
+    cmd_o += [temp_code]  + ["--sdaa-device-only","-c"]
+    # if options:
+    #     if isinstance(options, str):
+    #         cmd_o += [options]
+    #     elif isinstance(options, list):
+    #         cmd_o += options
+    #     else:
+    #         raise ValueError("options must be str or list of str")
     
+    cmd_o += ["-o", inter_file]
 
     # NOTE: ccbin option can be used to tell tecocc where to find the c++ compiler
     # just in case it is not in the path. On Windows it is not in the path by default.
@@ -109,21 +97,59 @@ def compile_sdaa(code, target_format="fatbin", options=None, path_target=None):
     # if cxx_compiler_path != "":
     #    cmd += ["-ccbin", cxx_compiler_path]
 
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    # proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
 
-    (out, _) = proc.communicate()
 
-    if proc.returncode != 0:
+    # (out, _) = proc.communicate()
+
+    proc_o = subprocess.Popen(cmd_o, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+    (out_o, _) = proc_o.communicate()
+
+    if proc_o.returncode != 0:
         msg = code
         msg += "\nCompilation error:\n"
-        msg += py_str(out)
+        msg += py_str(out_o)
         raise RuntimeError(msg)
 
+    # try:
+    #     subprocess.run(cmd_o, capture_output=True)
+    # except subprocess.CalledProcessError as err: 
+    #     msg = code
+    #     msg += "\nCompilation error:\n"
+    #     msg += py_str(err)
+    #     raise RuntimeError(msg)
+    
+    cmd_so = ["tecocc"]
+    cmd_so += [inter_file] + ["-device-only", "-fPIC","-shared"]
+    cmd_so += ["-o", file_target]
+
+    proc_so = subprocess.Popen(cmd_so, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+    (out_so, _) = proc_so.communicate()
+
+    if proc_so.returncode != 0:
+        msg = code
+        msg += "\nCompilation error:\n"
+        msg += py_str(out_so)
+        raise RuntimeError(msg)
+
+
+    # try:
+    #     subprocess.run(cmd_so, capture_output=True)
+    # except subprocess.CalledProcessError as err: 
+    #     msg = code
+    #     msg += "\nCompilation error:\n"
+    #     msg += py_str(err)
+    #     raise RuntimeError(msg)
+
+    # file_target = '/home/tangxf/zly/sdaa/my_kernel.so'
     with open(file_target, "rb") as f:
         data = bytearray(f.read())
         if not data:
             raise RuntimeError("Compilation error: empty result is generated")
         return data
+        #return file_target
 
 
 def find_sdaa_path():
@@ -191,9 +217,9 @@ def get_sdaa_version(sdaa_path=None):
 
 
 @tvm._ffi.register_func
-def tvm_callback_sdaa_compile(code):
+def tvm_callback_sdaa_compile(code, fmt, ops):
     """use tecocc to generate fatbin code for better optimization"""
-    fatbin = compile_sdaa(code, target_format="fatbin")
+    fatbin = compile_sdaa(code, target_format=fmt, options=ops)
     return fatbin
 
 def write_code(code, fname):

@@ -54,7 +54,12 @@ class SDAAModuleNode : public runtime::ModuleNode {
                           std::unordered_map<std::string, FunctionInfo> fmap,
                           std::string sdaa_source)
       : data_(data), fmt_(fmt), fmap_(fmap), sdaa_source_(sdaa_source) {
-    std::fill(module_.begin(), module_.end(), nullptr);
+        int device_id;
+        SDAA_CALL(sdaaGetDevice(&device_id));
+        VLOG(2) << "SDAAModuleNode's input data: " << data.c_str();
+        SDAA_CALL(sdaaModuleLoad(&(module_[device_id]), data_.c_str()));
+    // std::fill(module_.begin(), module_.end(), nullptr);
+
   }
   // destructor
   ~SDAAModuleNode() {

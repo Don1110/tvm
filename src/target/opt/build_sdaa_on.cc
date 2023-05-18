@@ -30,47 +30,18 @@
 
 #include <cstdlib>
 
+#include <unistd.h>
+
 #include "../../runtime/sdaa/sdaa_common.h"
 #include "../../runtime/sdaa/sdaa_module.h"
 #include "../build_common.h"
 #include "../source/codegen_sdaa.h"
 
+
+
 namespace tvm {
 namespace codegen {
 
-
-// sdaa header files 
-// It depends on whether more data types are needed, where is refered in codegen_sdaa.h
-// std::string FindSDAAIncludePath() {
-// #if defined(_WIN32)
-//   const std::string delimiter = "\\";
-// #else
-//   const std::string delimiter = "/";
-// #endif
-//   std::string sdaa_include_path;
-//   const char* sdaa_path_env = std::getenv("SDAA_PATH");
-//   if (sdaa_include_path != nullptr) {
-//     sdaa_include_path += sdaa_path_env;
-//     sdaa_include_path += delimiter + "include";
-//     return sdaa_include_path;
-//   }
-
-// #if defined(__linux__)
-//   struct stat st;
-//   sdaa_include_path = "/usr/local/cuda/include";
-//   if (stat(cuda_include_path.c_str(), &st) == 0) {
-//     return cuda_include_path;
-//   }
-
-//   if (stat("/usr/include/cuda.h", &st) == 0) {
-//     return "/usr/include";
-//   }
-// #endif
-//   LOG(FATAL) << "Cannot find cuda include path."
-//              << "CUDA_PATH is not set or CUDA is not installed in the default installation path."
-//              << "In other than linux, it is necessary to set CUDA_PATH.";
-//   return cuda_include_path;
-// }
 
 runtime::Module BuildSDAA(IRModule mod, Target target) {
   using tvm::runtime::Registry;
@@ -90,7 +61,7 @@ runtime::Module BuildSDAA(IRModule mod, Target target) {
   std::string code = cg.Finish();
 
   //zly: if save the cuda code locally or not 
-  if (const auto* f = Registry::Get("tvm_callback_cuda_postproc")) {
+  if (const auto* f = Registry::Get("tvm_callback_sdaa_postproc")) {
     code = (*f)(code).operator std::string();
   }
   std::string fmt = "so";
@@ -103,11 +74,26 @@ runtime::Module BuildSDAA(IRModule mod, Target target) {
   const auto* f = Registry::Get("tvm_callback_sdaa_compile");
   std::string ops = "--sdaa-device-only";
   compile_result = (*f)(code, fmt, ops).operator std::string();
-  
+
+  std::ofstream bytecode;
+  bytecode.open("bytecode.so", std::ios::out | std::ios::trunc);
+
+  bytecode << compile_result << std::endl;
+
+  bytecode.close();
+
   const auto* f_exit = Registry::Get("target.TargetExitScope");
   (*f_exit)(target);
 
-  return SDAAModuleCreate(compile_result, fmt, ExtractFuncInfo(mod), code);
+
+  char *path_current;
+  path_current = get_current_dir_name();
+   
+  std::string so_path;
+  so_path = path_current;
+  so_path.append("/bytecode.so");
+
+  return SDAAModuleCreate(so_path, fmt, ExtractFuncInfo(mod), code);
 }
 
 TVM_REGISTER_GLOBAL("target.build.sdaa").set_body_typed(BuildSDAA);

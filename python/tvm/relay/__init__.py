@@ -56,6 +56,8 @@ from . import backend
 from . import quantize
 from . import data_dep_optimization
 
+from . import visualize
+
 # Dialects
 from . import qnn
 

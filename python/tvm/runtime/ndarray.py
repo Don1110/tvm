@@ -401,6 +401,21 @@ def cpu(dev_id=0):
     """
     return Device(Device.kDLCPU, dev_id)
 
+def sdaa(dev_id=0):
+    """Construct a SDAA device
+
+    Parameters
+    ----------
+    dev_id : int, optional
+        The integer device id
+
+    Returns
+    -------
+    dev : Device
+        The created device
+    """
+    return Device(Device.kDLSDAA, dev_id)
+
 
 def cuda(dev_id=0):
     """Construct a CUDA GPU device
